@@ -1,0 +1,19 @@
+# User configuration (contains local paths)
+config.json
+
+# Output directory
+output/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
