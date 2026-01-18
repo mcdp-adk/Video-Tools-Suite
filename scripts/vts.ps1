@@ -90,7 +90,7 @@ function Show-Menu {
     Write-Host ""
 
     $menuItems = @(
-        @{ Key = "1"; Text = "Download YouTube Video" },
+        @{ Key = "1"; Text = "Download Video" },
         @{ Key = "2"; Text = "Download Subtitles Only" },
         @{ Key = "3"; Text = "Process Subtitle Text" },
         @{ Key = "4"; Text = "Mux Subtitle into Video" },
@@ -157,10 +157,12 @@ function Pause-Menu {
 }
 
 function Show-UrlFormats {
-    Write-Host "Supported formats:" -ForegroundColor Cyan
+    Write-Host "Supports 1800+ sites via yt-dlp" -ForegroundColor Cyan
+    Write-Host "Examples:" -ForegroundColor Gray
     Write-Host "  - https://www.youtube.com/watch?v=XXXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  - https://youtu.be/XXXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  - XXXXXXXXXXX (Video ID only)" -ForegroundColor Gray
+    Write-Host "  - https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
+    Write-Host "  - https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
+    Write-Host "  - XXXXXXXXXXX (YouTube video ID)" -ForegroundColor Gray
     Write-Host ""
 }
 
@@ -170,11 +172,11 @@ function Show-UrlFormats {
 
 function Invoke-YouTubeDownloadMenu {
     Clear-Host
-    Show-Header "Download YouTube Video"
+    Show-Header "Download Video"
 
     try {
         Show-UrlFormats
-        $url = Read-UserInput -Prompt "Enter YouTube URL or Video ID"
+        $url = Read-UserInput -Prompt "Enter URL"
         if (-not $url) {
             Show-Error "No URL provided"
             Pause-Menu
@@ -199,7 +201,7 @@ function Invoke-SubtitleOnlyDownloadMenu {
     try {
         Write-Host "This will download only subtitles (manual + auto-generated)" -ForegroundColor Cyan
         Show-UrlFormats
-        $url = Read-UserInput -Prompt "Enter YouTube URL or Video ID"
+        $url = Read-UserInput -Prompt "Enter URL"
         if (-not $url) {
             Show-Error "No URL provided"
             Pause-Menu

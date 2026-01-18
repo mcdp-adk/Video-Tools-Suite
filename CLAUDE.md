@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-基于 PowerShell 的视频处理工具集：YouTube 视频下载、字幕处理、字幕内封。
+基于 PowerShell 的视频处理工具集：视频下载（支持 1800+ 网站）、字幕处理、字幕内封。
 
 ## 文件结构
 
@@ -16,7 +16,7 @@ Video-Tools-Suite/
 ├── output/              # 默认输出目录（gitignore）
 └── scripts/
     ├── vts.ps1          # TUI 主程序
-    ├── download.ps1     # YouTube 下载
+    ├── download.ps1     # 视频下载（yt-dlp 支持的所有网站）
     ├── download.bat
     ├── process.ps1      # 字幕处理
     ├── process.bat

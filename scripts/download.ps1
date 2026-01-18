@@ -15,24 +15,21 @@ function Test-YtDlpAvailable {
     }
 }
 
-# Helper function: Parse YouTube video ID from various URL formats
-function Get-YouTubeVideoId {
+# Helper function: Normalize URL input
+# Supports direct URLs (any yt-dlp supported site) or YouTube video IDs
+function Get-NormalizedUrl {
     param([string]$Url)
 
-    # Pattern 1: Standard YouTube URL with v= parameter
-    if ($Url -match '[?&]v=([a-zA-Z0-9_-]{11})') {
-        return $matches[1]
+    # If it looks like a URL, use it directly
+    if ($Url -match '^https?://') {
+        return $Url
     }
-    # Pattern 2: Short youtu.be URL
-    if ($Url -match 'youtu\.be/([a-zA-Z0-9_-]{11})') {
-        return $matches[1]
+    # If it's an 11-character alphanumeric string, treat as YouTube video ID
+    if ($Url -match '^[a-zA-Z0-9_-]{11}$') {
+        return "https://www.youtube.com/watch?v=$Url"
     }
-    # Pattern 3: Direct video ID (11 characters)
-    if ($Url -match '^([a-zA-Z0-9_-]{11})$') {
-        return $matches[1]
-    }
-
-    throw "Could not parse YouTube video ID from input: $Url"
+    # Otherwise, pass through and let yt-dlp handle it
+    return $Url
 }
 
 # Helper function: Get cookie arguments if cookie file exists
@@ -45,7 +42,13 @@ function Get-CookieArgs {
 
 # Helper function: Get common yt-dlp arguments
 function Get-CommonYtDlpArgs {
-    return @("--no-warnings", "--no-progress", "--console-title", "--restrict-filenames")
+    return @(
+        "--no-warnings",
+        "--no-progress",
+        "--console-title",
+        "--restrict-filenames",
+        "--compat-options", "no-live-chat"
+    )
 }
 
 # Function interface for TUI integration: Download video with subtitles
@@ -57,8 +60,7 @@ function Invoke-YouTubeDownloader {
 
     Test-YtDlpAvailable | Out-Null
 
-    $videoId = Get-YouTubeVideoId -Url $InputUrl
-    $youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
+    $url = Get-NormalizedUrl -Url $InputUrl
 
     # Ensure output directory exists
     if (-not (Test-Path $script:YtdlOutputDir)) {
@@ -76,7 +78,7 @@ function Invoke-YouTubeDownloader {
         "--sub-langs", "all",
         "--no-write-subs",
         "-o", "$script:YtdlOutputDir\%(title)s.%(ext)s",
-        $youtubeUrl
+        $url
     )
     & yt-dlp $videoArgs | Out-Host
 
@@ -90,7 +92,7 @@ function Invoke-YouTubeDownloader {
         "--write-subs",
         "--skip-download",
         "-o", "$script:YtdlOutputDir\%(title)s.manual-sub.%(ext)s",
-        $youtubeUrl
+        $url
     )
     & yt-dlp $manualSubArgs | Out-Host
 
@@ -106,7 +108,7 @@ function Invoke-YouTubeDownloader {
         "--write-auto-subs",
         "--skip-download",
         "-o", "$script:YtdlOutputDir\%(title)s.auto-generated-sub.%(ext)s",
-        $youtubeUrl
+        $url
     )
     & yt-dlp $autoSubArgs | Out-Host
 
@@ -128,8 +130,7 @@ function Invoke-YouTubeSubtitleDownloader {
 
     Test-YtDlpAvailable | Out-Null
 
-    $videoId = Get-YouTubeVideoId -Url $InputUrl
-    $youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
+    $url = Get-NormalizedUrl -Url $InputUrl
 
     # Ensure output directory exists
     if (-not (Test-Path $script:YtdlOutputDir)) {
@@ -145,7 +146,7 @@ function Invoke-YouTubeSubtitleDownloader {
         "--write-subs",
         "--skip-download",
         "-o", "$script:YtdlOutputDir\%(title)s.%(ext)s",
-        $youtubeUrl
+        $url
     )
     & yt-dlp $manualSubArgs | Out-Host
 
@@ -161,7 +162,7 @@ function Invoke-YouTubeSubtitleDownloader {
         "--write-auto-subs",
         "--skip-download",
         "-o", "$script:YtdlOutputDir\%(title)s.auto.%(ext)s",
-        $youtubeUrl
+        $url
     )
     & yt-dlp $autoSubArgs | Out-Host
 
@@ -177,12 +178,10 @@ function Invoke-YouTubeSubtitleDownloader {
 # Command-line interface (when script is called directly)
 if ($InputUrl) {
     try {
-        $videoId = Get-YouTubeVideoId -Url $InputUrl
-        $youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
+        $url = Get-NormalizedUrl -Url $InputUrl
 
         Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host "Video ID: $videoId" -ForegroundColor White
-        Write-Host "URL:      $youtubeUrl" -ForegroundColor White
+        Write-Host "URL: $url" -ForegroundColor White
         Write-Host "================================================" -ForegroundColor Cyan
         Write-Host "Starting download..." -ForegroundColor Yellow
 
@@ -194,10 +193,12 @@ if ($InputUrl) {
         exit 1
     }
 } elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: download.bat <youtube_url_or_video_id>" -ForegroundColor Yellow
+    Write-Host "Usage: download.bat <url>" -ForegroundColor Yellow
+    Write-Host "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)" -ForegroundColor Cyan
     Write-Host "Examples:" -ForegroundColor Gray
     Write-Host "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
-    Write-Host "  download.bat https://youtu.be/dQw4w9WgXcQ" -ForegroundColor Gray
-    Write-Host "  download.bat dQw4w9WgXcQ" -ForegroundColor Gray
+    Write-Host "  download.bat https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
+    Write-Host "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
+    Write-Host "  download.bat dQw4w9WgXcQ  (YouTube video ID)" -ForegroundColor Gray
     exit 1
 }
