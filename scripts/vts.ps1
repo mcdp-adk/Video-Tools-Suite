@@ -395,8 +395,7 @@ function Invoke-SettingsMenu {
         Write-Host ""
 
         Write-Host "  --- Other ---" -ForegroundColor DarkGray
-        Write-Host "  [6] Glossaries..." -ForegroundColor Gray
-        Write-Host "  [7] Cookie File:        " -NoNewline -ForegroundColor Gray
+        Write-Host "  [6] Cookie File:        " -NoNewline -ForegroundColor Gray
         if ($script:Config.CookieFile -and (Test-Path $script:Config.CookieFile)) {
             Write-Host $script:Config.CookieFile -ForegroundColor Green
         } elseif ($script:Config.CookieFile) {
@@ -404,8 +403,9 @@ function Invoke-SettingsMenu {
         } else {
             Write-Host "(not set)" -ForegroundColor DarkGray
         }
-        Write-Host "  [8] Generate Transcript: " -NoNewline -ForegroundColor Gray
+        Write-Host "  [7] Generate Transcript: " -NoNewline -ForegroundColor Gray
         Write-Host $(if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }) -ForegroundColor White
+        Write-Host "  [8] Glossaries..." -ForegroundColor Gray
         Write-Host "  [R] Re-run Setup Wizard" -ForegroundColor Gray
         Write-Host ""
         Write-Host "  [B] Back" -ForegroundColor DarkGray
@@ -492,9 +492,6 @@ function Invoke-SettingsMenu {
                 }
             }
             '6' {
-                Show-GlossaryMenu
-            }
-            '7' {
                 $newPath = Read-UserInput -Prompt "Enter cookie file path"
                 if ($newPath) {
                     $script:Config.CookieFile = $newPath
@@ -508,12 +505,15 @@ function Invoke-SettingsMenu {
                     Start-Sleep -Seconds 1
                 }
             }
-            '8' {
+            '7' {
                 $script:Config.GenerateTranscriptInWorkflow = -not $script:Config.GenerateTranscriptInWorkflow
                 $status = if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }
                 Write-Host "Generate transcript in workflow: $status" -ForegroundColor Green
                 Export-Config
                 Start-Sleep -Seconds 1
+            }
+            '8' {
+                Show-GlossaryMenu
             }
             'R' {
                 $script:Config.FirstRun = $true

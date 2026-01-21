@@ -64,9 +64,9 @@ vts.bat
 | 3 | API Key |
 | 4 | 模型 |
 | 5 | 目标语言 |
-| 6 | 术语库管理 |
-| 7 | Cookie 文件 |
-| 8 | 工作流生成转录 |
+| 6 | Cookie 文件 |
+| 7 | 工作流生成转录 |
+| 8 | 术语库管理 |
 | R | 重新运行设置向导 |
 | B | 返回 |
 
@@ -76,7 +76,7 @@ vts.bat
 
 ```json
 {
-  "FirstRun": false,
+  "FirstRun": true,
   "OutputDir": "./output",
   "CookieFile": "",
   "AiProvider": "openai",
