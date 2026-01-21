@@ -34,7 +34,6 @@ powershell -Command "& { . .\scripts\vts.ps1 }"
 ### 5. 文档更新
 如果添加新功能：
 - [ ] 更新 `README.md`
-- [ ] 更新 `CLAUDE.md`
 
 ### 6. Git 提交
 ```powershell
@@ -46,7 +45,6 @@ git commit -m "feat/fix/docs: 简短描述"
 
 ## 新增脚本的检查项
 - [ ] 创建 `.ps1` 文件（遵循文件结构规范）
-- [ ] 创建对应的 `.bat` 入口文件
 - [ ] 在 `vts.ps1` 中 dot source 新脚本
 - [ ] 在 TUI 菜单中添加新选项
-- [ ] 更新 README 和 CLAUDE.md
+- [ ] 更新 README.md

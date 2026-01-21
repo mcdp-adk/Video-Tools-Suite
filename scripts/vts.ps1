@@ -5,6 +5,7 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Dot source all scripts
+. "$PSScriptRoot\utils.ps1"
 . "$PSScriptRoot\subtitle-utils.ps1"
 . "$PSScriptRoot\ai-client.ps1"
 . "$PSScriptRoot\google-translate.ps1"
@@ -69,32 +70,31 @@ function Export-Config {
 }
 
 # Apply configuration to all module variables
+# Apply configuration to all modules
+# This ensures all $script:* variables in submodules are synchronized with central config
+# Each module maintains its own $script:*OutputDir for independence when used standalone
 function Apply-ConfigToModules {
-    # Download module
-    $script:YtdlOutputDir = $script:Config.OutputDir
-    $script:YtdlCookieFile = $script:Config.CookieFile
+    $outputDir = $script:Config.OutputDir
 
-    # Mux module
-    $script:MuxerOutputDir = $script:Config.OutputDir
+    # Sync output directories to all modules
+    $script:YtdlOutputDir = $outputDir          # download.ps1
+    $script:MuxerOutputDir = $outputDir         # mux.ps1
+    $script:ProcessedOutputDir = $outputDir     # process.ps1
+    $script:TranscriptOutputDir = $outputDir    # transcript.ps1
+    $script:TranslateOutputDir = $outputDir     # translate.ps1
+    $script:WorkflowOutputDir = $outputDir      # workflow.ps1
 
-    # Process module
-    $script:ProcessedOutputDir = $script:Config.OutputDir
+    # Sync cookie file
+    $script:YtdlCookieFile = $script:Config.CookieFile  # download.ps1
 
-    # Transcript module
-    $script:TranscriptOutputDir = $script:Config.OutputDir
+    # Sync translate settings
+    $script:TranslateMethod = $script:Config.TranslateMethod   # translate.ps1
+    $script:TargetLanguage = $script:Config.TargetLanguage     # translate.ps1
 
-    # Translate module
-    $script:TranslateOutputDir = $script:Config.OutputDir
-    $script:TranslateMethod = $script:Config.TranslateMethod
-    $script:TargetLanguage = $script:Config.TargetLanguage
-
-    # Workflow module
-    $script:WorkflowOutputDir = $script:Config.OutputDir
-
-    # AI client module
-    $script:AiClient_BaseUrl = $script:Config.AiBaseUrl
-    $script:AiClient_ApiKey = $script:Config.AiApiKey
-    $script:AiClient_Model = $script:Config.AiModel
+    # Sync AI client settings
+    $script:AiClient_BaseUrl = $script:Config.AiBaseUrl   # ai-client.ps1
+    $script:AiClient_ApiKey = $script:Config.AiApiKey     # ai-client.ps1
+    $script:AiClient_Model = $script:Config.AiModel       # ai-client.ps1
 }
 
 # Load config on startup
@@ -103,42 +103,7 @@ Import-Config
 #endregion
 
 #region Helper Functions
-
-function Remove-Quotes {
-    param([string]$Text)
-    return $Text.Trim('"').Trim("'").Trim()
-}
-
-function Format-DisplayPath {
-    param([string]$Path)
-    if (-not $Path) { return "(not set)" }
-    try {
-        $resolved = [System.IO.Path]::GetFullPath($Path)
-        return $resolved
-    } catch {
-        return $Path
-    }
-}
-
-function Read-UserInput {
-    param(
-        [string]$Prompt,
-        [switch]$ValidateFileExists
-    )
-
-    $input = Read-Host $Prompt
-    $input = Remove-Quotes $input
-
-    if (-not $input) {
-        return $null
-    }
-
-    if ($ValidateFileExists -and -not (Test-Path $input)) {
-        return @{ Error = "File not found: $input" }
-    }
-
-    return $input
-}
+# Note: Remove-Quotes, Format-DisplayPath, Read-UserInput are now in utils.ps1
 
 function Show-Menu {
     Clear-Host

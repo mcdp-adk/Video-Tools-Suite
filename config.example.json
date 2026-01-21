@@ -1,5 +1,5 @@
 {
-  "FirstRun": true,
+  "FirstRun": false,
   "OutputDir": "./output",
   "CookieFile": "",
   "AiProvider": "openai",
