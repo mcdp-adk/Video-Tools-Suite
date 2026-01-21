@@ -458,6 +458,105 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
     return $fallback
 }
 
+# Split segments that exceed MaxWords*2 at natural break points
+# Only splits very long segments; tolerates moderately long ones for better readability
+function Split-LongSegments {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Segments,
+        [int]$MaxWords = 18
+    )
+
+    $result = @()
+    $threshold = $MaxWords * 2  # Only split if exceeds this
+
+    # Split point candidates by priority (split BEFORE these words)
+    $conjunctions = @('and', 'but', 'so', 'because', 'or', 'yet', 'then', 'although', 'however', 'therefore', 'while', 'when')
+    $discourse = @('well', 'now', 'actually', 'basically', 'honestly', 'anyway', 'meanwhile', 'also', 'plus', 'I')
+
+    foreach ($segment in $Segments) {
+        $words = @($segment.Text -split '\s+' | Where-Object { $_ })
+
+        if ($words.Count -le $threshold) {
+            $result += $segment
+            continue
+        }
+
+        # Segment is very long, need to split
+        Write-Host "    Splitting very long segment ($($words.Count) words)..." -ForegroundColor Yellow
+
+        $currentStart = 0
+        $segmentStartIndex = $segment.StartIndex
+
+        while ($currentStart -lt $words.Count) {
+            $remaining = $words.Count - $currentStart
+
+            if ($remaining -le $threshold) {
+                # Take all remaining
+                $result += @{
+                    StartIndex = $segmentStartIndex + $currentStart
+                    EndIndex = $segment.EndIndex
+                    Text = ($words[$currentStart..($words.Count - 1)] -join ' ')
+                }
+                break
+            }
+
+            # Search for split point in range [MaxWords, MaxWords*2]
+            $searchMin = $MaxWords
+            $searchMax = [Math]::Min($remaining - 5, $threshold)
+
+            $bestSplit = -1
+
+            # Priority 1: Conjunctions
+            for ($i = $searchMax; $i -ge $searchMin; $i--) {
+                $wordIdx = $currentStart + $i
+                if ($wordIdx -lt $words.Count -and $conjunctions -contains $words[$wordIdx].ToLower()) {
+                    $bestSplit = $i
+                    break
+                }
+            }
+
+            # Priority 2: Comma
+            if ($bestSplit -lt 0) {
+                for ($i = $searchMax; $i -ge $searchMin; $i--) {
+                    $wordIdx = $currentStart + $i - 1
+                    if ($wordIdx -ge 0 -and $wordIdx -lt $words.Count -and $words[$wordIdx] -match ',$') {
+                        $bestSplit = $i
+                        break
+                    }
+                }
+            }
+
+            # Priority 3: Discourse markers
+            if ($bestSplit -lt 0) {
+                for ($i = $searchMax; $i -ge $searchMin; $i--) {
+                    $wordIdx = $currentStart + $i
+                    if ($wordIdx -lt $words.Count -and $discourse -contains $words[$wordIdx].ToLower()) {
+                        $bestSplit = $i
+                        break
+                    }
+                }
+            }
+
+            # Last resort: split at threshold (MaxWords*2)
+            if ($bestSplit -lt 0) {
+                $bestSplit = $threshold
+            }
+
+            $endIdx = $currentStart + $bestSplit - 1
+            $result += @{
+                StartIndex = $segmentStartIndex + $currentStart
+                EndIndex = $segmentStartIndex + $endIdx
+                Text = ($words[$currentStart..$endIdx] -join ' ')
+            }
+
+            $currentStart = $currentStart + $bestSplit
+        }
+    }
+
+    return $result
+}
+
 # Word-based segmentation: AI inserts <br> markers, we split by word index
 # Returns array of objects: @{ StartIndex; EndIndex; Text }
 function Invoke-WordBasedSegmentation {
@@ -495,8 +594,8 @@ RULES:
 4. DO NOT create segments shorter than $MinWordsPerSegment words unless it's the last segment
 5. Return ONLY the text with <br> markers, no explanations
 
-Example input: "hello world this is a test of the system"
-Example output: "hello world this is a test<br>of the system"
+Example input: "well I think the biggest problem with this club is that we keep making the same mistakes over and over again and nobody seems to learn from them so we end up in the same position every single year and the fans are just tired of watching this happen"
+Example output: "well I think the biggest problem with this club<br>is that we keep making the same mistakes over and over again<br>and nobody seems to learn from them<br>so we end up in the same position every single year<br>and the fans are just tired of watching this happen"
 "@
 
     $userPrompt = "Insert <br> markers to segment this text:`n$fullText"
@@ -544,6 +643,9 @@ Example output: "hello world this is a test<br>of the system"
         }
 
         if ($segments.Count -gt 0) {
+            # Post-process: split any segments that exceed MaxWordsPerSegment
+            $segments = Split-LongSegments -Segments $segments -MaxWords $MaxWordsPerSegment
+
             Write-Host "  Split into $($segments.Count) segments" -ForegroundColor Green
 
             # Cache result
