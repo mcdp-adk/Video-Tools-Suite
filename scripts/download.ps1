@@ -134,6 +134,28 @@ function Get-VideoTitle {
     return $videoId
 }
 
+# Extract video URLs from a playlist using yt-dlp
+function Get-PlaylistVideoUrls {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PlaylistUrl
+    )
+
+    $cookieArgs = Get-CookieArgs
+    $ytdlpArgs = $cookieArgs + @(
+        "--flat-playlist",
+        "--print", "url",
+        $PlaylistUrl
+    )
+
+    $urls = & yt-dlp @ytdlpArgs 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to extract playlist URLs"
+    }
+
+    return @($urls | Where-Object { $_ -match '^https?://' })
+}
+
 # Get common yt-dlp arguments
 function Get-CommonYtDlpArgs {
     return @(

@@ -15,6 +15,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 . "$PSScriptRoot\transcript.ps1"
 . "$PSScriptRoot\translate.ps1"
 . "$PSScriptRoot\workflow.ps1"
+. "$PSScriptRoot\batch.ps1"
 . "$PSScriptRoot\setup-wizard.ps1"
 
 #region Configuration
@@ -114,6 +115,8 @@ function Show-Menu {
 
     Write-Host "  [A]" -ForegroundColor Magenta -NoNewline
     Write-Host " All-in-One Workflow" -ForegroundColor White
+    Write-Host "  [B]" -ForegroundColor Magenta -NoNewline
+    Write-Host " Batch Download (Playlist/Multi-URL)" -ForegroundColor White
     Write-Host ""
 
     Write-Host "  [1]" -ForegroundColor Green -NoNewline
@@ -136,7 +139,7 @@ function Show-Menu {
 }
 
 function Get-MenuChoice {
-    param([string[]]$ValidChoices = @('A', '1', '2', '3', '4', 'S', 'Q'))
+    param([string[]]$ValidChoices = @('A', 'B', '1', '2', '3', '4', 'S', 'Q'))
 
     do {
         $choice = (Read-Host "Enter your choice").Trim().ToUpper()
@@ -145,7 +148,7 @@ function Get-MenuChoice {
             return $choice
         }
 
-        Write-Host "Invalid choice! Please enter A, 1-4, S or Q" -ForegroundColor Red
+        Write-Host "Invalid choice! Please enter A, B, 1-4, S or Q" -ForegroundColor Red
         Write-Host ""
     } while ($true)
 }
@@ -213,6 +216,97 @@ function Invoke-FullWorkflowMenu {
     }
     catch {
         Show-Error $_.Exception.Message
+    }
+
+    Pause-Menu
+}
+
+function Invoke-BatchDownloadMenu {
+    Clear-Host
+    Show-Header "Batch Download"
+
+    Write-Host "  [1] YouTube Playlist URL" -ForegroundColor White
+    Write-Host "  [2] Enter Multiple URLs" -ForegroundColor White
+    Write-Host "  [B] Back" -ForegroundColor DarkGray
+    Write-Host ""
+
+    $choice = Read-Host "Select input method"
+
+    $urls = @()
+
+    switch ($choice.ToUpper()) {
+        '1' {
+            # Playlist mode
+            Write-Host ""
+            $playlistUrl = Read-Host "Enter playlist URL"
+            if (-not $playlistUrl) {
+                Show-Error "No URL provided"
+                Pause-Menu
+                return
+            }
+
+            Write-Host "Extracting video URLs from playlist..." -ForegroundColor Yellow
+            try {
+                $urls = Get-PlaylistVideoUrls -PlaylistUrl $playlistUrl
+                Write-Host "Found $($urls.Count) videos" -ForegroundColor Green
+            }
+            catch {
+                Show-Error "Failed to extract playlist: $_"
+                Pause-Menu
+                return
+            }
+        }
+        '2' {
+            # Multi-URL mode
+            Write-Host ""
+            Write-Host "Enter URLs (one per line, empty line to finish):" -ForegroundColor Cyan
+            do {
+                $url = Read-Host
+                if ($url) { $urls += $url }
+            } while ($url)
+        }
+        'B' { return }
+        default {
+            Show-Error "Invalid choice"
+            Pause-Menu
+            return
+        }
+    }
+
+    if ($urls.Count -eq 0) {
+        Show-Error "No URLs provided"
+        Pause-Menu
+        return
+    }
+
+    # Preview video titles
+    Write-Host ""
+    Write-Host "Fetching video titles..." -ForegroundColor Yellow
+    $previews = @()
+    foreach ($url in $urls) {
+        $title = Get-VideoTitle -Url $url
+        $previews += @{ Url = $url; Title = $title }
+        Write-Host "  $($previews.Count). $title" -ForegroundColor White
+    }
+
+    Write-Host ""
+    Write-Host "Ready to process $($urls.Count) videos" -ForegroundColor Yellow
+    Write-Host "Press Enter to start or Ctrl+C to cancel..."
+    Read-Host
+
+    # Run batch workflow
+    $result = Invoke-BatchWorkflow -Urls $urls
+
+    # Offer retry if there are failures
+    while ($result.Failed.Count -gt 0) {
+        Write-Host ""
+        $retry = Read-Host "Retry failed items? (y/n)"
+        if ($retry -eq 'y') {
+            $result = Invoke-BatchRetry -FailedItems $result.Failed
+        }
+        else {
+            break
+        }
     }
 
     Pause-Menu
@@ -549,6 +643,7 @@ function Start-MainMenu {
 
         switch (Get-MenuChoice) {
             'A' { Invoke-FullWorkflowMenu }
+            'B' { Invoke-BatchDownloadMenu }
             '1' { Invoke-YouTubeDownloadMenu }
             '2' { Invoke-SubtitleOnlyDownloadMenu }
             '3' { Invoke-TranscriptMenu }

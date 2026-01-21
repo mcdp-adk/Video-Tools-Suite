@@ -34,7 +34,8 @@ vts.bat → vts.ps1 (主 TUI 程序)
               ├── 配置管理: Import-Config, Export-Config, Apply-ConfigToModules
               │
               └── 菜单调用模块 API:
-                    ├── download.ps1   → New-VideoProjectDir, Invoke-VideoDownload, Invoke-SubtitleDownload
+                    ├── download.ps1   → New-VideoProjectDir, Invoke-VideoDownload, Invoke-SubtitleDownload, Get-PlaylistVideoUrls
+                    ├── batch.ps1      → Invoke-BatchWorkflow, Invoke-BatchRetry
                     ├── translate.ps1  → Invoke-SubtitleTranslator
                     ├── transcript.ps1 → Invoke-TranscriptGenerator
                     ├── mux.ps1        → Invoke-SubtitleMuxer
@@ -66,6 +67,9 @@ vts.ps1 通过 `Apply-ConfigToModules` 将中央配置同步到各模块的 `$sc
 | transcript.ps1 | `Invoke-TranscriptGenerator` | 字幕转纯文本 |
 | mux.ps1 | `Invoke-SubtitleMuxer` | 字幕内封到视频 |
 | workflow.ps1 | `Invoke-FullWorkflow` | 全流程处理 |
+| download.ps1 | `Get-PlaylistVideoUrls` | 从播放列表提取视频 URL |
+| batch.ps1 | `Invoke-BatchWorkflow` | 批量处理多个视频 |
+| batch.ps1 | `Invoke-BatchRetry` | 重试失败项 |
 
 ## 编码规范
 
