@@ -8,7 +8,6 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 . "$PSScriptRoot\utils.ps1"
 . "$PSScriptRoot\subtitle-utils.ps1"
 . "$PSScriptRoot\ai-client.ps1"
-. "$PSScriptRoot\google-translate.ps1"
 . "$PSScriptRoot\glossary.ps1"
 . "$PSScriptRoot\process.ps1"
 . "$PSScriptRoot\mux.ps1"
@@ -32,8 +31,8 @@ $script:Config = @{
     AiBaseUrl = "https://api.openai.com/v1"
     AiApiKey = ""
     AiModel = "gpt-4o-mini"
-    TranslateMethod = "ai"
     TargetLanguage = "zh-CN"
+    GenerateTranscriptInWorkflow = $false
 }
 
 # Load config from file
@@ -50,8 +49,8 @@ function Import-Config {
             if ($fileConfig.AiBaseUrl) { $script:Config.AiBaseUrl = $fileConfig.AiBaseUrl }
             if ($null -ne $fileConfig.AiApiKey) { $script:Config.AiApiKey = $fileConfig.AiApiKey }
             if ($fileConfig.AiModel) { $script:Config.AiModel = $fileConfig.AiModel }
-            if ($fileConfig.TranslateMethod) { $script:Config.TranslateMethod = $fileConfig.TranslateMethod }
             if ($fileConfig.TargetLanguage) { $script:Config.TargetLanguage = $fileConfig.TargetLanguage }
+            if ($null -ne $fileConfig.GenerateTranscriptInWorkflow) { $script:Config.GenerateTranscriptInWorkflow = $fileConfig.GenerateTranscriptInWorkflow }
 
             # Backward compatibility: map old config keys
             if ($fileConfig.DownloadDir) { $script:Config.OutputDir = $fileConfig.DownloadDir }
@@ -88,7 +87,6 @@ function Apply-ConfigToModules {
     $script:YtdlCookieFile = $script:Config.CookieFile  # download.ps1
 
     # Sync translate settings
-    $script:TranslateMethod = $script:Config.TranslateMethod   # translate.ps1
     $script:TargetLanguage = $script:Config.TargetLanguage     # translate.ps1
 
     # Sync AI client settings
@@ -118,25 +116,14 @@ function Show-Menu {
     Write-Host " All-in-One Workflow" -ForegroundColor White
     Write-Host ""
 
-    Write-Host "  --- Download ---" -ForegroundColor DarkGray
     Write-Host "  [1]" -ForegroundColor Green -NoNewline
     Write-Host " Download Video" -ForegroundColor White
     Write-Host "  [2]" -ForegroundColor Green -NoNewline
     Write-Host " Download Subtitles Only" -ForegroundColor White
     Write-Host "  [3]" -ForegroundColor Green -NoNewline
     Write-Host " Generate Transcript" -ForegroundColor White
-    Write-Host ""
-
-    Write-Host "  --- Subtitle ---" -ForegroundColor DarkGray
     Write-Host "  [4]" -ForegroundColor Green -NoNewline
     Write-Host " Translate Subtitles" -ForegroundColor White
-    Write-Host "  [5]" -ForegroundColor Green -NoNewline
-    Write-Host " Process Text (Spacing/Punctuation)" -ForegroundColor White
-    Write-Host ""
-
-    Write-Host "  --- Video ---" -ForegroundColor DarkGray
-    Write-Host "  [6]" -ForegroundColor Green -NoNewline
-    Write-Host " Mux Subtitle into Video" -ForegroundColor White
     Write-Host ""
 
     Write-Host "  [S]" -ForegroundColor Cyan -NoNewline
@@ -149,7 +136,7 @@ function Show-Menu {
 }
 
 function Get-MenuChoice {
-    param([string[]]$ValidChoices = @('A', '1', '2', '3', '4', '5', '6', 'S', 'Q'))
+    param([string[]]$ValidChoices = @('A', '1', '2', '3', '4', 'S', 'Q'))
 
     do {
         $choice = (Read-Host "Enter your choice").Trim().ToUpper()
@@ -158,7 +145,7 @@ function Get-MenuChoice {
             return $choice
         }
 
-        Write-Host "Invalid choice! Please enter A, 1-6, S or Q" -ForegroundColor Red
+        Write-Host "Invalid choice! Please enter A, 1-4, S or Q" -ForegroundColor Red
         Write-Host ""
     } while ($true)
 }
@@ -222,11 +209,7 @@ function Invoke-FullWorkflowMenu {
             return
         }
 
-        $result = Invoke-FullWorkflow -InputUrl $url
-
-        Write-Host ""
-        Show-Success "Workflow completed!"
-        Write-Host "Project: $($result.ProjectDir)" -ForegroundColor Gray
+        $result = Invoke-FullWorkflow -InputUrl $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
     }
     catch {
         Show-Error $_.Exception.Message
@@ -248,9 +231,22 @@ function Invoke-YouTubeDownloadMenu {
             return
         }
 
-        Write-Host "Downloading..." -ForegroundColor Yellow
-        $result = Invoke-YouTubeDownloader -InputUrl $url
-        Show-Success "Video downloaded to: $result"
+        Write-Host ""
+        Write-Host "Creating project..." -ForegroundColor Cyan
+        $project = New-VideoProjectDir -Url $url
+        Write-Host "  Project: $($project.ProjectName)" -ForegroundColor Gray
+
+        Write-Host ""
+        $videoPath = Invoke-VideoDownload -Url $url -ProjectDir $project.ProjectDir
+        $subCount = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
+
+        Write-Host ""
+        Show-Success "Download complete!"
+        Write-Host "  Project folder: $($project.ProjectDir)" -ForegroundColor Gray
+        if ($videoPath) {
+            Write-Host "  Video: $(Split-Path -Leaf $videoPath)" -ForegroundColor Gray
+        }
+        Write-Host "  Subtitles: $subCount files" -ForegroundColor Gray
     }
     catch {
         Show-Error $_.Exception.Message
@@ -265,6 +261,7 @@ function Invoke-SubtitleOnlyDownloadMenu {
 
     try {
         Write-Host "This will download only subtitles (manual + auto-generated)" -ForegroundColor Cyan
+        Write-Host ""
         Show-UrlFormats
         $url = Read-UserInput -Prompt "Enter URL"
         if (-not $url) {
@@ -273,9 +270,22 @@ function Invoke-SubtitleOnlyDownloadMenu {
             return
         }
 
-        Write-Host "Downloading subtitles..." -ForegroundColor Yellow
-        $result = Invoke-YouTubeSubtitleDownloader -InputUrl $url
-        Show-Success "Subtitles downloaded to: $result"
+        Write-Host ""
+        Write-Host "Creating project..." -ForegroundColor Cyan
+        $project = New-VideoProjectDir -Url $url
+        Write-Host "  Project: $($project.ProjectName)" -ForegroundColor Gray
+
+        Write-Host ""
+        $subCount = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
+
+        Write-Host ""
+        if ($subCount -gt 0) {
+            Show-Success "Subtitles downloaded!"
+            Write-Host "  Project folder: $($project.ProjectDir)" -ForegroundColor Gray
+            Write-Host "  Subtitle files: $subCount" -ForegroundColor Gray
+        } else {
+            Show-Error "No subtitles available for this video"
+        }
     }
     catch {
         Show-Error $_.Exception.Message
@@ -304,7 +314,7 @@ function Invoke-TranscriptMenu {
         }
 
         Write-Host "Generating transcript..." -ForegroundColor Yellow
-        $result = Invoke-TranscriptGenerator -InputPath $file
+        $result = Invoke-TranscriptGenerator -InputPath $file -Quiet
         Show-Success "Transcript saved to: $result"
     }
     catch {
@@ -319,9 +329,8 @@ function Invoke-TranslateMenu {
     Show-Header "Translate Subtitles"
 
     try {
-        $methodName = if ($script:Config.TranslateMethod -eq 'ai') { "AI ($($script:Config.AiModel))" } else { "Google Translate" }
-        Write-Host "Translation method: $methodName" -ForegroundColor Cyan
-        Write-Host "Target language: $($script:Config.TargetLanguage)" -ForegroundColor Cyan
+        Write-Host "AI Model: $($script:Config.AiModel)" -ForegroundColor Cyan
+        Write-Host "Target: $($script:Config.TargetLanguage)" -ForegroundColor Cyan
         Write-Host ""
 
         $file = Read-UserInput -Prompt "Enter subtitle file path (.vtt or .srt)" -ValidateFileExists
@@ -337,78 +346,13 @@ function Invoke-TranslateMenu {
         }
 
         Write-Host ""
-        $result = Invoke-SubtitleTranslator -InputPath $file
-        Show-Success "Bilingual subtitle saved to: $($result.OutputPath)"
-    }
-    catch {
-        Show-Error $_.Exception.Message
-    }
+        Write-Host "Translating..." -ForegroundColor Yellow
+        $result = Invoke-SubtitleTranslator -InputPath $file -Quiet
 
-    Pause-Menu
-}
-
-function Invoke-TextProcessorMenu {
-    Clear-Host
-    Show-Header "Process Subtitle Text"
-
-    try {
-        Write-Host "This will process Chinese punctuation and spacing" -ForegroundColor Cyan
-        $file = Read-UserInput -Prompt "Enter subtitle file path" -ValidateFileExists
-        if (-not $file) {
-            Show-Error "No file path provided"
-            Pause-Menu
-            return
-        }
-        if ($file -is [hashtable] -and $file.Error) {
-            Show-Error $file.Error
-            Pause-Menu
-            return
-        }
-
-        Write-Host "Processing..." -ForegroundColor Yellow
-        $result = Invoke-TextProcessor -InputPath $file
-        Show-Success "Output file: $result"
-    }
-    catch {
-        Show-Error $_.Exception.Message
-    }
-
-    Pause-Menu
-}
-
-function Invoke-SubtitleMuxerMenu {
-    Clear-Host
-    Show-Header "Mux Subtitle into Video"
-
-    try {
-        Write-Host "This will mux subtitle file into video" -ForegroundColor Cyan
-        $subtitleFile = Read-UserInput -Prompt "Enter subtitle file path" -ValidateFileExists
-        if (-not $subtitleFile) {
-            Show-Error "No subtitle file path provided"
-            Pause-Menu
-            return
-        }
-        if ($subtitleFile -is [hashtable] -and $subtitleFile.Error) {
-            Show-Error $subtitleFile.Error
-            Pause-Menu
-            return
-        }
-
-        $videoFile = Read-UserInput -Prompt "Enter video file path" -ValidateFileExists
-        if (-not $videoFile) {
-            Show-Error "No video file path provided"
-            Pause-Menu
-            return
-        }
-        if ($videoFile -is [hashtable] -and $videoFile.Error) {
-            Show-Error $videoFile.Error
-            Pause-Menu
-            return
-        }
-
-        Write-Host "Muxing..." -ForegroundColor Yellow
-        $result = Invoke-SubtitleMuxer -VideoPath $videoFile -SubtitlePath $subtitleFile
-        Show-Success "Output video: $result"
+        Write-Host ""
+        Show-Success "Translation complete!"
+        Write-Host "  Output: $($result.OutputPath)" -ForegroundColor Gray
+        Write-Host "  Entries: $($result.EntryCount)" -ForegroundColor Gray
     }
     catch {
         Show-Error $_.Exception.Message
@@ -446,16 +390,13 @@ function Invoke-SettingsMenu {
         Write-Host ""
 
         Write-Host "  --- Translation ---" -ForegroundColor DarkGray
-        Write-Host "  [5] Method:             " -NoNewline -ForegroundColor Gray
-        $methodDisplay = if ($script:Config.TranslateMethod -eq 'ai') { "AI Translation" } else { "Google Translate" }
-        Write-Host $methodDisplay -ForegroundColor White
-        Write-Host "  [6] Target Language:    " -NoNewline -ForegroundColor Gray
+        Write-Host "  [5] Target Language:    " -NoNewline -ForegroundColor Gray
         Write-Host "$($script:Config.TargetLanguage)" -ForegroundColor White
         Write-Host ""
 
         Write-Host "  --- Other ---" -ForegroundColor DarkGray
-        Write-Host "  [7] Glossaries..." -ForegroundColor Gray
-        Write-Host "  [8] Cookie File:        " -NoNewline -ForegroundColor Gray
+        Write-Host "  [6] Glossaries..." -ForegroundColor Gray
+        Write-Host "  [7] Cookie File:        " -NoNewline -ForegroundColor Gray
         if ($script:Config.CookieFile -and (Test-Path $script:Config.CookieFile)) {
             Write-Host $script:Config.CookieFile -ForegroundColor Green
         } elseif ($script:Config.CookieFile) {
@@ -463,6 +404,8 @@ function Invoke-SettingsMenu {
         } else {
             Write-Host "(not set)" -ForegroundColor DarkGray
         }
+        Write-Host "  [8] Generate Transcript: " -NoNewline -ForegroundColor Gray
+        Write-Host $(if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }) -ForegroundColor White
         Write-Host "  [R] Re-run Setup Wizard" -ForegroundColor Gray
         Write-Host ""
         Write-Host "  [B] Back" -ForegroundColor DarkGray
@@ -538,21 +481,6 @@ function Invoke-SettingsMenu {
             }
             '5' {
                 Write-Host ""
-                Write-Host "  [1] AI Translation" -ForegroundColor White
-                Write-Host "  [2] Google Translate" -ForegroundColor White
-                $methodChoice = Read-Host "Select method"
-                if ($methodChoice -eq '1') {
-                    $script:Config.TranslateMethod = "ai"
-                } elseif ($methodChoice -eq '2') {
-                    $script:Config.TranslateMethod = "google"
-                }
-                Apply-ConfigToModules
-                Export-Config
-                Write-Host "Translation method updated" -ForegroundColor Green
-                Start-Sleep -Seconds 1
-            }
-            '6' {
-                Write-Host ""
                 Write-Host "Common options: zh-CN, zh-TW, ja, ko, en" -ForegroundColor Gray
                 $newLang = Read-Host "Enter target language code"
                 if ($newLang) {
@@ -563,10 +491,10 @@ function Invoke-SettingsMenu {
                     Start-Sleep -Seconds 1
                 }
             }
-            '7' {
+            '6' {
                 Show-GlossaryMenu
             }
-            '8' {
+            '7' {
                 $newPath = Read-UserInput -Prompt "Enter cookie file path"
                 if ($newPath) {
                     $script:Config.CookieFile = $newPath
@@ -579,6 +507,13 @@ function Invoke-SettingsMenu {
                     }
                     Start-Sleep -Seconds 1
                 }
+            }
+            '8' {
+                $script:Config.GenerateTranscriptInWorkflow = -not $script:Config.GenerateTranscriptInWorkflow
+                $status = if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }
+                Write-Host "Generate transcript in workflow: $status" -ForegroundColor Green
+                Export-Config
+                Start-Sleep -Seconds 1
             }
             'R' {
                 $script:Config.FirstRun = $true
@@ -618,8 +553,6 @@ function Start-MainMenu {
             '2' { Invoke-SubtitleOnlyDownloadMenu }
             '3' { Invoke-TranscriptMenu }
             '4' { Invoke-TranslateMenu }
-            '5' { Invoke-TextProcessorMenu }
-            '6' { Invoke-SubtitleMuxerMenu }
             'S' { Invoke-SettingsMenu }
             'Q' {
                 Clear-Host

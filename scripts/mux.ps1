@@ -1,9 +1,3 @@
-# Command-line parameters (must be first for dot sourcing compatibility)
-param(
-    [string]$VideoPath,
-    [string]$SubtitlePath
-)
-
 # Configuration
 $script:MuxerOutputDir = "$PSScriptRoot\..\output"
 $script:DefaultSubtitleLang = "chi"
@@ -213,30 +207,38 @@ function Invoke-ProjectSubtitleMuxer {
 
 #region Command-line Interface
 
-if ($VideoPath -and $SubtitlePath) {
-    try {
-        $videoFile = Get-Item $VideoPath
-        Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host "Video:    $($videoFile.Name)" -ForegroundColor White
-        Write-Host "Subtitle: $(Split-Path -Leaf $SubtitlePath)" -ForegroundColor White
-        Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Processing... (this may take a while)" -ForegroundColor Yellow
+if ($MyInvocation.InvocationName -ne '.') {
+    # CLI mode - parse arguments
+    $cliVideo = $null
+    $cliSub = $null
+    for ($i = 0; $i -lt $args.Count; $i++) {
+        if ($args[$i] -match '^-?Video' -and $i + 1 -lt $args.Count) { $cliVideo = $args[$i + 1] }
+        if ($args[$i] -match '^-?Sub' -and $i + 1 -lt $args.Count) { $cliSub = $args[$i + 1] }
+    }
+    # Also support positional: mux.ps1 video.mkv sub.ass
+    if (-not $cliVideo -and $args.Count -ge 1) { $cliVideo = $args[0] }
+    if (-not $cliSub -and $args.Count -ge 2) { $cliSub = $args[1] }
 
-        $result = Invoke-SubtitleMuxer -VideoPath $VideoPath -SubtitlePath $SubtitlePath
-
-        Write-Host ""
-        Write-Host "Success! Video with subtitles saved to:" -ForegroundColor Green
-        Write-Host $result -ForegroundColor Gray
-    } catch {
-        Write-Host ""
-        Write-Host "Error: $_" -ForegroundColor Red
+    if ($cliVideo -and $cliSub) {
+        try {
+            $videoFile = Get-Item $cliVideo
+            Write-Host "================================================" -ForegroundColor Cyan
+            Write-Host "Video:    $($videoFile.Name)" -ForegroundColor White
+            Write-Host "Subtitle: $(Split-Path -Leaf $cliSub)" -ForegroundColor White
+            Write-Host "================================================" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "Processing..." -ForegroundColor Yellow
+            $result = Invoke-SubtitleMuxer -VideoPath $cliVideo -SubtitlePath $cliSub
+            Write-Host ""
+            Write-Host "Success! Output: $result" -ForegroundColor Green
+        } catch {
+            Write-Host "Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Usage: mux.ps1 <video_file> <subtitle_file>" -ForegroundColor Yellow
         exit 1
     }
-} elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: mux.bat <video_file> <subtitle_file>" -ForegroundColor Yellow
-    Write-Host "Example: mux.bat video.mkv subtitle.ass" -ForegroundColor Gray
-    exit 1
 }
 
 #endregion

@@ -1,6 +1,3 @@
-# Command-line parameter (must be first for dot sourcing compatibility)
-param([string]$InputUrl)
-
 # Full workflow module
 # Handles complete pipeline: download -> select subtitle -> translate -> mux
 
@@ -110,80 +107,27 @@ function Invoke-FullWorkflow {
         $Host.UI.RawUI.WindowTitle = "VTS: Step 1/4 - Downloading..."
         Write-Host "[Step 1/4] Downloading video and subtitles..." -ForegroundColor Yellow
 
-        # Get video ID and title
-        $videoId = Get-VideoId -Url $InputUrl
-        Write-Host "  Video ID: $videoId" -ForegroundColor Gray
+        # Create project directory using shared function from download.ps1
+        $project = New-VideoProjectDir -Url $InputUrl
+        $projectDir = $project.ProjectDir
 
-        $videoTitle = Get-VideoTitle -Url $InputUrl
-        Write-Host "  Title: $videoTitle" -ForegroundColor Gray
+        Write-Host "  Video ID: $($project.VideoId)" -ForegroundColor Gray
+        Write-Host "  Title: $($project.VideoTitle)" -ForegroundColor Gray
 
-        # Create project directory
-        $projectName = "[$videoId]$videoTitle"
-        $projectDir = Join-Path $script:WorkflowOutputDir $projectName
-
-        if (-not (Test-Path $projectDir)) {
-            New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
+        # Download video using shared function
+        Write-Host "  Downloading video..." -ForegroundColor Gray
+        $videoPath = Invoke-VideoDownload -Url $InputUrl -ProjectDir $projectDir -Quiet
+        if ($videoPath) {
+            Write-Host "  Video: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
         }
 
-        Write-Host "  Project: $projectDir" -ForegroundColor Gray
-
-        # Download video
-        $url = Get-NormalizedUrl -Url $InputUrl
-        $cookieArgs = Get-CookieArgs
-        $commonArgs = Get-CommonYtDlpArgs
-
-        Write-Host "  Downloading video..." -ForegroundColor Cyan
-        $videoArgs = $cookieArgs + $commonArgs + @(
-            "--embed-thumbnail",
-            "--embed-metadata",
-            "-o", "$projectDir\video.%(ext)s",
-            $url
-        )
-        & yt-dlp $videoArgs 2>&1 | Out-Host
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Video download failed"
-        }
-
-        # Find downloaded video
-        $videoFile = Get-ChildItem -LiteralPath $projectDir -Filter "video.*" | Where-Object { $_.Extension -match '\.(mp4|mkv|webm|mov|avi)$' } | Select-Object -First 1
-        if ($videoFile) {
-            $videoPath = $videoFile.FullName
-            Write-Host "  Video: $($videoFile.Name)" -ForegroundColor Green
-        }
-
-        # Download subtitles
-        Write-Host "  Downloading subtitles..." -ForegroundColor Cyan
-
-        # Manual subtitles
-        $manualSubArgs = $cookieArgs + $commonArgs + @(
-            "--write-subs",
-            "--sub-langs", "en,zh,ja",
-            "--skip-download",
-            "-o", "$projectDir\original.%(ext)s",
-            $url
-        )
-        & yt-dlp $manualSubArgs 2>&1 | Out-Null
-
-        # Auto-generated subtitles
-        $autoSubArgs = $cookieArgs + $commonArgs + @(
-            "--write-auto-subs",
-            "--sub-langs", "en,zh,ja",
-            "--skip-download",
-            "-o", "$projectDir\original.auto.%(ext)s",
-            $url
-        )
-        & yt-dlp $autoSubArgs 2>&1 | Out-Null
-
-        # Check subtitle count (use -LiteralPath to handle brackets in path)
-        $subFiles = @()
-        $subFiles += Get-ChildItem -LiteralPath $projectDir -Filter "*.vtt" -ErrorAction SilentlyContinue
-        $subFiles += Get-ChildItem -LiteralPath $projectDir -Filter "*.srt" -ErrorAction SilentlyContinue
-        $subCount = $subFiles.Count
+        # Download subtitles using shared function
+        Write-Host "  Downloading subtitles..." -ForegroundColor Gray
+        $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $projectDir -Quiet
         if ($subCount -gt 0) {
-            Write-Host "  Subtitles downloaded ($subCount files)" -ForegroundColor Green
+            Write-Host "  Subtitles: $subCount files" -ForegroundColor Green
         } else {
-            Write-Host "  No subtitles available for this video" -ForegroundColor Yellow
+            Write-Host "  No subtitles available" -ForegroundColor Yellow
         }
     }
     else {
@@ -205,17 +149,12 @@ function Invoke-FullWorkflow {
     #region Step 2: Select Subtitle
     $Host.UI.RawUI.WindowTitle = "VTS: Step 2/4 - Selecting subtitle..."
     Write-Host ""
-    Write-Host "[Step 2/4] Selecting best subtitle..." -ForegroundColor Yellow
+    Write-Host "[Step 2/4] Selecting subtitle..." -ForegroundColor Yellow
 
     $subtitlePath = Select-BestSubtitle -ProjectDir $projectDir -PreferredLanguage "en"
 
     if (-not $subtitlePath) {
         Write-Host "  No subtitle files found" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Options:" -ForegroundColor Yellow
-        Write-Host "  1. This video may not have subtitles available" -ForegroundColor Gray
-        Write-Host "  2. Place a .vtt or .srt file in: $projectDir" -ForegroundColor Gray
-        Write-Host "  3. Re-run workflow after adding subtitles" -ForegroundColor Gray
         throw "No subtitle files found in project directory"
     }
 
@@ -225,17 +164,17 @@ function Invoke-FullWorkflow {
     # Check language
     $subtitleData = Import-SubtitleFile -Path $subtitlePath
     $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
-    Write-Host "  Detected language: $($langCheck.DetectedLanguage)" -ForegroundColor Gray
+    Write-Host "  Language: $($langCheck.DetectedLanguage)" -ForegroundColor Gray
 
     #endregion
 
-    #region Step 3: Generate Transcript (Optional)
+    #region Step 2.5: Generate Transcript (Optional)
     if ($GenerateTranscript) {
         Write-Host ""
         Write-Host "[Step 2.5/4] Generating transcript..." -ForegroundColor Yellow
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
-        Invoke-TranscriptGenerator -InputPath $subtitlePath -OutputPath $transcriptPath | Out-Null
+        Invoke-TranscriptGenerator -InputPath $subtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
         Write-Host "  Transcript: transcript.txt" -ForegroundColor Green
     }
     #endregion
@@ -252,8 +191,8 @@ function Invoke-FullWorkflow {
 
         $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -Quiet
 
-        Write-Host "  Bilingual ASS: bilingual.ass" -ForegroundColor Green
-        Write-Host "  Translated $($translateResult.EntryCount) entries" -ForegroundColor Gray
+        Write-Host "  Output: bilingual.ass" -ForegroundColor Green
+        Write-Host "  Entries: $($translateResult.EntryCount)" -ForegroundColor Gray
     }
     else {
         Write-Host ""
@@ -294,11 +233,16 @@ function Invoke-FullWorkflow {
                 Move-Item -LiteralPath $muxResult -Destination $outputMkvPath -Force
             }
 
-            Write-Host "  Output: $outputMkvPath" -ForegroundColor Green
+            Write-Host "  Output: $(Split-Path -Leaf $outputMkvPath)" -ForegroundColor Green
         }
         finally {
             $script:MuxerOutputDir = $originalMuxDir
         }
+
+        Write-Host ""
+        Write-Host "[SUCCESS] Workflow completed!" -ForegroundColor Green
+        Write-Host "  Project: $projectDir" -ForegroundColor Gray
+        Write-Host "  Output: $outputMkvPath" -ForegroundColor Gray
     }
     else {
         Write-Host ""
@@ -322,24 +266,26 @@ function Invoke-FullWorkflow {
 
 #region Command-line Interface
 
-if ($InputUrl) {
-    try {
-        $result = Invoke-FullWorkflow -InputUrl $InputUrl -ShowHeader
-    }
-    catch {
+if ($MyInvocation.InvocationName -ne '.') {
+    $cliUrl = if ($args.Count -ge 1) { $args[0] } else { $null }
+    if ($cliUrl) {
+        try {
+            $result = Invoke-FullWorkflow -InputUrl $cliUrl -ShowHeader
+        }
+        catch {
+            Write-Host ""
+            Write-Host "Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Usage: workflow.bat <url>" -ForegroundColor Yellow
+        Write-Host "Runs complete workflow: download -> translate -> mux" -ForegroundColor Gray
         Write-Host ""
-        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Host "Examples:" -ForegroundColor Gray
+        Write-Host "  workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
+        Write-Host "  workflow.bat https://www.bilibili.com/video/BV1xx411c7XW" -ForegroundColor Gray
         exit 1
     }
-}
-elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: workflow.bat <url>" -ForegroundColor Yellow
-    Write-Host "Runs complete workflow: download -> translate -> mux" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Examples:" -ForegroundColor Gray
-    Write-Host "  workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
-    Write-Host "  workflow.bat https://www.bilibili.com/video/BV1xx411c7XW" -ForegroundColor Gray
-    exit 1
 }
 
 #endregion

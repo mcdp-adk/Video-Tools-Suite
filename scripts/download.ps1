@@ -1,6 +1,3 @@
-# Command-line parameter (must be first for dot sourcing compatibility)
-param([string]$InputUrl)
-
 # Configuration
 $script:YtdlCookieFile = ""
 $script:YtdlOutputDir = "$PSScriptRoot\..\output"
@@ -177,199 +174,185 @@ function New-VideoProjectDir {
 
 #region Main Functions
 
-# Function interface for TUI integration: Download video with subtitles
-function Invoke-YouTubeDownloader {
+# Download video to project folder (core function used by workflow and menus)
+function Invoke-VideoDownload {
     param(
         [Parameter(Mandatory=$true)]
-        [string]$InputUrl,
-        [switch]$UseProjectFolder
+        [string]$Url,
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir,
+        [switch]$Quiet
     )
 
     Test-YtDlpAvailable | Out-Null
 
-    $url = Get-NormalizedUrl -Url $InputUrl
-
-    # Ensure output directory exists
-    if (-not (Test-Path $script:YtdlOutputDir)) {
-        New-Item -ItemType Directory -Path $script:YtdlOutputDir -Force | Out-Null
-    }
-
+    $url = Get-NormalizedUrl -Url $Url
     $cookieArgs = Get-CookieArgs
     $commonArgs = Get-CommonYtDlpArgs
 
-    # Determine output path based on mode
-    if ($UseProjectFolder) {
-        # New project folder structure
-        $project = New-VideoProjectDir -Url $url
-        $outputDir = $project.ProjectDir
-        $videoOutputTemplate = "$outputDir\video.%(ext)s"
-        $manualSubTemplate = "$outputDir\original.%(ext)s"
-        $autoSubTemplate = "$outputDir\original.auto.%(ext)s"
-
-        Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
-    }
-    else {
-        # Legacy flat structure
-        $outputDir = $script:YtdlOutputDir
-        $videoOutputTemplate = "$outputDir\%(title)s.%(ext)s"
-        $manualSubTemplate = "$outputDir\%(title)s.manual-sub.%(ext)s"
-        $autoSubTemplate = "$outputDir\%(title)s.auto-generated-sub.%(ext)s"
+    if (-not $Quiet) {
+        Write-Host "Downloading video..." -ForegroundColor Cyan
     }
 
-    # Download video with embedded subtitles
     $videoArgs = $cookieArgs + $commonArgs + @(
         "--embed-thumbnail",
         "--embed-metadata",
         "--embed-subs",
         "--sub-langs", "all",
-        "--no-write-subs",
-        "-o", $videoOutputTemplate,
+        "-o", "$ProjectDir\video.%(ext)s",
         $url
     )
-    & yt-dlp $videoArgs | Out-Host
+    & yt-dlp $videoArgs 2>&1 | Out-Null
 
     if ($LASTEXITCODE -ne 0) {
-        throw "yt-dlp failed with exit code $LASTEXITCODE"
+        throw "Video download failed"
     }
 
-    # Download manual subtitle files
-    Write-Host "Downloading manual subtitle files..." -ForegroundColor Yellow
-    $manualSubArgs = $cookieArgs + $commonArgs + @(
-        "--write-subs",
-        "--sub-langs", "en,zh,ja",
-        "--skip-download",
-        "-o", $manualSubTemplate,
-        $url
-    )
-    & yt-dlp $manualSubArgs | Out-Host
+    # Find downloaded video
+    $videoFile = Get-ChildItem -LiteralPath $ProjectDir -Filter "video.*" |
+        Where-Object { $_.Extension -match '\.(mp4|mkv|webm|mov|avi)$' } |
+        Select-Object -First 1
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Manual subtitle download failed" -ForegroundColor Yellow
-    } else {
-        Write-Host "Manual subtitles downloaded" -ForegroundColor Green
+    if ($videoFile) {
+        return $videoFile.FullName
     }
-
-    # Download auto-generated subtitle files
-    Write-Host "Downloading auto-generated subtitle files..." -ForegroundColor Yellow
-    $autoSubArgs = $cookieArgs + $commonArgs + @(
-        "--write-auto-subs",
-        "--sub-langs", "en,zh,ja",
-        "--skip-download",
-        "-o", $autoSubTemplate,
-        $url
-    )
-    & yt-dlp $autoSubArgs | Out-Host
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Auto-generated subtitle download failed" -ForegroundColor Yellow
-    } else {
-        Write-Host "Auto-generated subtitles downloaded" -ForegroundColor Green
-    }
-
-    return $outputDir
+    return $null
 }
 
-# Function interface for TUI integration: Download subtitles only
-function Invoke-YouTubeSubtitleDownloader {
+# Download subtitles to project folder (core function used by workflow and menus)
+function Invoke-SubtitleDownload {
     param(
         [Parameter(Mandatory=$true)]
-        [string]$InputUrl,
-        [switch]$UseProjectFolder
+        [string]$Url,
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir,
+        [switch]$Quiet
     )
 
     Test-YtDlpAvailable | Out-Null
 
-    $url = Get-NormalizedUrl -Url $InputUrl
-
-    # Ensure output directory exists
-    if (-not (Test-Path $script:YtdlOutputDir)) {
-        New-Item -ItemType Directory -Path $script:YtdlOutputDir -Force | Out-Null
-    }
-
+    $url = Get-NormalizedUrl -Url $Url
     $cookieArgs = Get-CookieArgs
     $commonArgs = Get-CommonYtDlpArgs
 
-    # Determine output path based on mode
-    if ($UseProjectFolder) {
-        $project = New-VideoProjectDir -Url $url
-        $outputDir = $project.ProjectDir
-        $manualSubTemplate = "$outputDir\original.%(ext)s"
-        $autoSubTemplate = "$outputDir\original.auto.%(ext)s"
-
-        Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
-    }
-    else {
-        $outputDir = $script:YtdlOutputDir
-        $manualSubTemplate = "$outputDir\%(title)s.%(ext)s"
-        $autoSubTemplate = "$outputDir\%(title)s.auto.%(ext)s"
+    if (-not $Quiet) {
+        Write-Host "Downloading subtitles..." -ForegroundColor Cyan
     }
 
-    # Download manual subtitles
-    Write-Host "Downloading manual subtitles..." -ForegroundColor Yellow
+    # Manual subtitles
     $manualSubArgs = $cookieArgs + $commonArgs + @(
         "--write-subs",
         "--sub-langs", "en,zh,ja",
         "--skip-download",
-        "-o", $manualSubTemplate,
+        "-o", "$ProjectDir\original.%(ext)s",
         $url
     )
-    & yt-dlp $manualSubArgs | Out-Host
+    & yt-dlp $manualSubArgs 2>&1 | Out-Null
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Manual subtitle download failed" -ForegroundColor Yellow
-    } else {
-        Write-Host "Manual subtitles downloaded" -ForegroundColor Green
-    }
-
-    # Download auto-generated subtitles
-    Write-Host "Downloading auto-generated subtitles..." -ForegroundColor Yellow
+    # Auto-generated subtitles
     $autoSubArgs = $cookieArgs + $commonArgs + @(
         "--write-auto-subs",
         "--sub-langs", "en,zh,ja",
         "--skip-download",
-        "-o", $autoSubTemplate,
+        "-o", "$ProjectDir\original.auto.%(ext)s",
         $url
     )
-    & yt-dlp $autoSubArgs | Out-Host
+    & yt-dlp $autoSubArgs 2>&1 | Out-Null
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Auto-generated subtitle download failed" -ForegroundColor Yellow
-    } else {
-        Write-Host "Auto-generated subtitles downloaded" -ForegroundColor Green
+    # Count downloaded files
+    $subFiles = @()
+    $subFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.vtt" -ErrorAction SilentlyContinue
+    $subFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.srt" -ErrorAction SilentlyContinue
+
+    return $subFiles.Count
+}
+
+# Function interface for TUI integration: Download video with subtitles
+# Now uses project folder structure exclusively
+function Invoke-YouTubeDownloader {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InputUrl
+    )
+
+    # Create project folder
+    $project = New-VideoProjectDir -Url $InputUrl
+
+    Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
+
+    # Download video using core function
+    $videoPath = Invoke-VideoDownload -Url $InputUrl -ProjectDir $project.ProjectDir
+    if ($videoPath) {
+        Write-Host "Video downloaded: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
     }
 
-    return $outputDir
+    # Download subtitles using core function
+    $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $project.ProjectDir
+    if ($subCount -gt 0) {
+        Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
+    } else {
+        Write-Host "No subtitles available" -ForegroundColor Yellow
+    }
+
+    return $project.ProjectDir
+}
+
+# Function interface for TUI integration: Download subtitles only
+# Now uses project folder structure exclusively
+function Invoke-YouTubeSubtitleDownloader {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InputUrl
+    )
+
+    # Create project folder
+    $project = New-VideoProjectDir -Url $InputUrl
+
+    Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
+
+    # Download subtitles only using core function
+    $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $project.ProjectDir
+    if ($subCount -gt 0) {
+        Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
+    } else {
+        Write-Host "No subtitles available" -ForegroundColor Yellow
+    }
+
+    return $project.ProjectDir
 }
 
 #endregion
 
 #region Command-line Interface
 
-if ($InputUrl) {
-    try {
-        $url = Get-NormalizedUrl -Url $InputUrl
+if ($MyInvocation.InvocationName -ne '.') {
+    $cliUrl = if ($args.Count -ge 1) { $args[0] } else { $null }
+    if ($cliUrl) {
+        try {
+            $url = Get-NormalizedUrl -Url $cliUrl
 
-        Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host "URL: $url" -ForegroundColor White
-        Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host "Starting download..." -ForegroundColor Yellow
+            Write-Host "================================================" -ForegroundColor Cyan
+            Write-Host "URL: $url" -ForegroundColor White
+            Write-Host "================================================" -ForegroundColor Cyan
+            Write-Host "Starting download..." -ForegroundColor Yellow
 
-        $result = Invoke-YouTubeDownloader -InputUrl $InputUrl
+            $result = Invoke-YouTubeDownloader -InputUrl $cliUrl
 
-        Write-Host "Success! Video downloaded to: $result" -ForegroundColor Green
-    } catch {
-        Write-Host "Error: $_" -ForegroundColor Red
+            Write-Host "Success! Video downloaded to: $result" -ForegroundColor Green
+        } catch {
+            Write-Host "Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Usage: download.bat <url>" -ForegroundColor Yellow
+        Write-Host "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)" -ForegroundColor Cyan
+        Write-Host "Examples:" -ForegroundColor Gray
+        Write-Host "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
+        Write-Host "  download.bat https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
+        Write-Host "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
+        Write-Host "  download.bat dQw4w9WgXcQ  (YouTube video ID)" -ForegroundColor Gray
         exit 1
     }
-} elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: download.bat <url>" -ForegroundColor Yellow
-    Write-Host "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)" -ForegroundColor Cyan
-    Write-Host "Examples:" -ForegroundColor Gray
-    Write-Host "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
-    Write-Host "  download.bat https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  download.bat dQw4w9WgXcQ  (YouTube video ID)" -ForegroundColor Gray
-    exit 1
 }
 
 #endregion

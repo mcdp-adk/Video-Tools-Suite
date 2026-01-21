@@ -32,18 +32,18 @@ function Read-UserInput {
         [switch]$ValidateFileExists
     )
 
-    $input = Read-Host $Prompt
-    $input = Remove-Quotes $input
+    $userInput = Read-Host $Prompt
+    $userInput = Remove-Quotes $userInput
 
-    if (-not $input) {
+    if (-not $userInput) {
         return $null
     }
 
-    if ($ValidateFileExists -and -not (Test-Path $input)) {
-        return @{ Error = "File not found: $input" }
+    if ($ValidateFileExists -and -not (Test-Path -LiteralPath $userInput)) {
+        return @{ Error = "File not found: $userInput" }
     }
 
-    return $input
+    return $userInput
 }
 
 #endregion

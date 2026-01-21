@@ -1,8 +1,5 @@
-# Command-line parameter (must be first for dot sourcing compatibility)
-param([string]$InputPath)
-
 # Subtitle translation module
-# Supports AI translation and Google Translate
+# Uses AI translation
 
 # Dot source dependencies if not already loaded
 if (-not (Get-Command "Import-SubtitleFile" -ErrorAction SilentlyContinue)) {
@@ -11,15 +8,11 @@ if (-not (Get-Command "Import-SubtitleFile" -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command "Invoke-AiCompletion" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\ai-client.ps1"
 }
-if (-not (Get-Command "Invoke-GoogleTranslate" -ErrorAction SilentlyContinue)) {
-    . "$PSScriptRoot\google-translate.ps1"
-}
 if (-not (Get-Command "Get-AllGlossaryTerms" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\glossary.ps1"
 }
 
 # Configuration (set by vts.ps1 from config.json)
-$script:TranslateMethod = "ai"  # "ai" or "google"
 $script:TargetLanguage = "zh-CN"
 $script:TranslateOutputDir = "$PSScriptRoot\..\output"
 
@@ -31,7 +24,6 @@ function Invoke-SubtitleTranslator {
         [Parameter(Mandatory=$true)]
         [string]$InputPath,
         [string]$OutputPath = "",
-        [string]$Method = "",
         [string]$TargetLanguage = "",
         [switch]$SkipProofread,
         [switch]$GenerateAss,
@@ -43,14 +35,12 @@ function Invoke-SubtitleTranslator {
     }
 
     # Use configured values if not specified
-    if (-not $Method) { $Method = $script:TranslateMethod }
     if (-not $TargetLanguage) { $TargetLanguage = $script:TargetLanguage }
 
     if (-not $Quiet) {
         Write-Host "================================================" -ForegroundColor Cyan
         Write-Host "Subtitle Translator" -ForegroundColor Yellow
         Write-Host "================================================" -ForegroundColor Cyan
-        Write-Host "  Method: $Method" -ForegroundColor Gray
         Write-Host "  Target: $TargetLanguage" -ForegroundColor Gray
         Write-Host "================================================" -ForegroundColor Cyan
         Write-Host ""
@@ -93,18 +83,8 @@ function Invoke-SubtitleTranslator {
         if (-not $Quiet) { Write-Host "Warning: Source language appears to be the same as target language" -ForegroundColor Yellow }
     }
 
-    # Translate based on method
-    $bilingualEntries = switch ($Method.ToLower()) {
-        'ai' {
-            Invoke-AiTranslateFlow -Entries $entries -TargetLanguage $TargetLanguage -SkipProofread:$SkipProofread
-        }
-        'google' {
-            Invoke-GoogleTranslateFlow -Entries $entries -TargetLanguage $TargetLanguage
-        }
-        default {
-            throw "Unknown translation method: $Method"
-        }
-    }
+    # Translate using AI
+    $bilingualEntries = Invoke-AiTranslateFlow -Entries $entries -TargetLanguage $TargetLanguage -SkipProofread:$SkipProofread
 
     # Apply text formatting to translations (Chinese spacing/punctuation)
     if ($TargetLanguage -match 'zh') {
@@ -151,7 +131,6 @@ function Invoke-SubtitleTranslator {
     return @{
         OutputPath = $OutputPath
         EntryCount = $bilingualEntries.Count
-        Method = $Method
     }
 }
 
@@ -205,28 +184,6 @@ function Invoke-AiTranslateFlow {
 
 #endregion
 
-#region Google Translation Flow
-
-function Invoke-GoogleTranslateFlow {
-    param(
-        [Parameter(Mandatory=$true)]
-        [array]$Entries,
-        [string]$TargetLanguage = "zh-CN"
-    )
-
-    Write-Host "Translating with Google Translate..." -ForegroundColor Cyan
-
-    # Get language code
-    $targetCode = Get-GoogleLanguageCode -LanguageName $TargetLanguage
-
-    # Use sentence-based translation for better quality
-    $bilingualEntries = Invoke-GoogleSentenceTranslate -Entries $Entries -TargetLanguage $targetCode
-
-    return $bilingualEntries
-}
-
-#endregion
-
 #region Project Integration
 
 # Translate subtitle and save to project folder
@@ -236,7 +193,6 @@ function Invoke-ProjectSubtitleTranslator {
         [string]$SubtitlePath,
         [Parameter(Mandatory=$true)]
         [string]$ProjectDir,
-        [string]$Method = "",
         [string]$TargetLanguage = ""
     )
 
@@ -250,7 +206,7 @@ function Invoke-ProjectSubtitleTranslator {
 
     $outputPath = Join-Path $ProjectDir "bilingual.ass"
 
-    $result = Invoke-SubtitleTranslator -InputPath $SubtitlePath -OutputPath $outputPath -Method $Method -TargetLanguage $TargetLanguage
+    $result = Invoke-SubtitleTranslator -InputPath $SubtitlePath -OutputPath $outputPath -TargetLanguage $TargetLanguage
 
     return $result
 }
@@ -259,25 +215,27 @@ function Invoke-ProjectSubtitleTranslator {
 
 #region Command-line Interface
 
-if ($InputPath) {
-    try {
-        $result = Invoke-SubtitleTranslator -InputPath $InputPath
+if ($MyInvocation.InvocationName -ne '.') {
+    $cliPath = if ($args.Count -ge 1) { $args[0] } else { $null }
+    if ($cliPath) {
+        try {
+            $result = Invoke-SubtitleTranslator -InputPath $cliPath
+            Write-Host ""
+            Write-Host "Success!" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Usage: translate.bat <subtitle_file>" -ForegroundColor Yellow
+        Write-Host "Translates subtitle file and generates bilingual ASS" -ForegroundColor Gray
         Write-Host ""
-        Write-Host "Success!" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Host "Examples:" -ForegroundColor Gray
+        Write-Host "  translate.bat video.en.vtt" -ForegroundColor Gray
+        Write-Host "  translate.bat subtitles.srt" -ForegroundColor Gray
         exit 1
     }
-}
-elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: translate.bat <subtitle_file>" -ForegroundColor Yellow
-    Write-Host "Translates subtitle file and generates bilingual ASS" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Examples:" -ForegroundColor Gray
-    Write-Host "  translate.bat video.en.vtt" -ForegroundColor Gray
-    Write-Host "  translate.bat subtitles.srt" -ForegroundColor Gray
-    exit 1
 }
 
 #endregion

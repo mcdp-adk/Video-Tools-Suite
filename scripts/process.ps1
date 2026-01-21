@@ -1,6 +1,3 @@
-# Command-line parameter (must be first for dot sourcing compatibility)
-param([string]$InputPath)
-
 # Configuration
 $script:ProcessedOutputDir = "$PSScriptRoot\..\output"
 
@@ -51,17 +48,20 @@ function Invoke-TextProcessor {
 }
 
 # Command-line interface (when script is called directly)
-if ($InputPath) {
-    try {
-        Write-Host "Processing: $(Split-Path -Leaf $InputPath)" -ForegroundColor Cyan
-        $result = Invoke-TextProcessor -InputPath $InputPath
-        Write-Host "Success! Output:" -ForegroundColor Green
-        Write-Host $result -ForegroundColor Gray
-    } catch {
-        Write-Host "Error: $_" -ForegroundColor Red
+if ($MyInvocation.InvocationName -ne '.') {
+    $cliPath = if ($args.Count -ge 1) { $args[0] } else { $null }
+    if ($cliPath) {
+        try {
+            Write-Host "Processing: $(Split-Path -Leaf $cliPath)" -ForegroundColor Cyan
+            $result = Invoke-TextProcessor -InputPath $cliPath
+            Write-Host "Success! Output:" -ForegroundColor Green
+            Write-Host $result -ForegroundColor Gray
+        } catch {
+            Write-Host "Error: $_" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Usage: process.bat <input_file>" -ForegroundColor Yellow
         exit 1
     }
-} elseif ($MyInvocation.InvocationName -ne '.') {
-    Write-Host "Usage: process.bat <input_file>" -ForegroundColor Yellow
-    exit 1
 }
