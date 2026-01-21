@@ -267,60 +267,6 @@ function Invoke-SubtitleDownload {
     return $subFiles.Count
 }
 
-# Function interface for TUI integration: Download video with subtitles
-# Now uses project folder structure exclusively
-function Invoke-YouTubeDownloader {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$InputUrl
-    )
-
-    # Create project folder
-    $project = New-VideoProjectDir -Url $InputUrl
-
-    Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
-
-    # Download video using core function
-    $videoPath = Invoke-VideoDownload -Url $InputUrl -ProjectDir $project.ProjectDir
-    if ($videoPath) {
-        Write-Host "Video downloaded: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
-    }
-
-    # Download subtitles using core function
-    $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $project.ProjectDir
-    if ($subCount -gt 0) {
-        Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
-    } else {
-        Write-Host "No subtitles available" -ForegroundColor Yellow
-    }
-
-    return $project.ProjectDir
-}
-
-# Function interface for TUI integration: Download subtitles only
-# Now uses project folder structure exclusively
-function Invoke-YouTubeSubtitleDownloader {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$InputUrl
-    )
-
-    # Create project folder
-    $project = New-VideoProjectDir -Url $InputUrl
-
-    Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
-
-    # Download subtitles only using core function
-    $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $project.ProjectDir
-    if ($subCount -gt 0) {
-        Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
-    } else {
-        Write-Host "No subtitles available" -ForegroundColor Yellow
-    }
-
-    return $project.ProjectDir
-}
-
 #endregion
 
 #region Command-line Interface
@@ -336,9 +282,25 @@ if ($MyInvocation.InvocationName -ne '.') {
             Write-Host "================================================" -ForegroundColor Cyan
             Write-Host "Starting download..." -ForegroundColor Yellow
 
-            $result = Invoke-YouTubeDownloader -InputUrl $cliUrl
+            # Create project folder
+            $project = New-VideoProjectDir -Url $cliUrl
+            Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
 
-            Write-Host "Success! Video downloaded to: $result" -ForegroundColor Green
+            # Download video
+            $videoPath = Invoke-VideoDownload -Url $cliUrl -ProjectDir $project.ProjectDir
+            if ($videoPath) {
+                Write-Host "Video downloaded: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
+            }
+
+            # Download subtitles
+            $subCount = Invoke-SubtitleDownload -Url $cliUrl -ProjectDir $project.ProjectDir
+            if ($subCount -gt 0) {
+                Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
+            } else {
+                Write-Host "No subtitles available" -ForegroundColor Yellow
+            }
+
+            Write-Host "Success! Video downloaded to: $($project.ProjectDir)" -ForegroundColor Green
         } catch {
             Write-Host "Error: $_" -ForegroundColor Red
             exit 1

@@ -6,7 +6,6 @@
 
 - **视频下载** - 下载视频及字幕（支持 yt-dlp 所有 1800+ 网站）
 - **AI 字幕翻译** - 使用 AI 翻译字幕，支持术语库控制
-- **Google 翻译** - 免费翻译选项，无需 API
 - **双语字幕** - 自动生成双语字幕（ASS 格式）
 - **字幕文本处理** - 优化中文字幕显示（标点替换、中英文间距）
 - **字幕内封** - 将字幕合并到视频文件（输出 MKV 格式）
@@ -52,9 +51,7 @@ vts.bat
 | 1 | 下载视频和字幕 |
 | 2 | 仅下载字幕 |
 | 3 | 生成转录文本 |
-| 4 | 翻译字幕（AI/Google）|
-| 5 | 文本处理 |
-| 6 | 字幕内封 |
+| 4 | 翻译字幕 |
 | S | 设置 |
 | Q | 退出 |
 
@@ -66,10 +63,10 @@ vts.bat
 | 2 | AI 提供商 |
 | 3 | API Key |
 | 4 | 模型 |
-| 5 | 翻译方式 |
-| 6 | 目标语言 |
-| 7 | 术语库管理 |
-| 8 | Cookie 文件 |
+| 5 | 目标语言 |
+| 6 | 术语库管理 |
+| 7 | Cookie 文件 |
+| 8 | 工作流生成转录 |
 | R | 重新运行设置向导 |
 | B | 返回 |
 
@@ -86,7 +83,6 @@ vts.bat
   "AiBaseUrl": "https://api.openai.com/v1",
   "AiApiKey": "",
   "AiModel": "gpt-4o-mini",
-  "TranslateMethod": "ai",
   "TargetLanguage": "zh-CN"
 }
 ```
@@ -101,7 +97,6 @@ vts.bat
 | AiBaseUrl | AI API 端点 |
 | AiApiKey | AI API 密钥 |
 | AiModel | AI 模型名称 |
-| TranslateMethod | 翻译方法（ai/google） |
 | TargetLanguage | 目标语言代码 |
 
 ### 支持的 AI 提供商

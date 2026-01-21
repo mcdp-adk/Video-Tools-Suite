@@ -109,12 +109,7 @@ function Invoke-SubtitleTranslator {
         $file = Get-Item -LiteralPath $InputPath
         $baseName = $file.BaseName
 
-        if ($GenerateAss) {
-            $OutputPath = Join-Path $script:TranslateOutputDir "$baseName.bilingual.ass"
-        }
-        else {
-            $OutputPath = Join-Path $script:TranslateOutputDir "$baseName.bilingual.ass"
-        }
+        $OutputPath = Join-Path $script:TranslateOutputDir "$baseName.bilingual.ass"
     }
 
     # Generate ASS file
@@ -180,35 +175,6 @@ function Invoke-AiTranslateFlow {
     }
 
     return $bilingualEntries
-}
-
-#endregion
-
-#region Project Integration
-
-# Translate subtitle and save to project folder
-function Invoke-ProjectSubtitleTranslator {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SubtitlePath,
-        [Parameter(Mandatory=$true)]
-        [string]$ProjectDir,
-        [string]$TargetLanguage = ""
-    )
-
-    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
-        throw "Subtitle file not found: $SubtitlePath"
-    }
-
-    if (-not (Test-Path -LiteralPath $ProjectDir)) {
-        throw "Project directory not found: $ProjectDir"
-    }
-
-    $outputPath = Join-Path $ProjectDir "bilingual.ass"
-
-    $result = Invoke-SubtitleTranslator -InputPath $SubtitlePath -OutputPath $outputPath -TargetLanguage $TargetLanguage
-
-    return $result
 }
 
 #endregion

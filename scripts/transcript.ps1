@@ -144,29 +144,6 @@ function Invoke-TranscriptGenerator {
     return $OutputPath
 }
 
-# Generate transcript directly to a project folder
-function Invoke-ProjectTranscriptGenerator {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SubtitlePath,
-        [Parameter(Mandatory=$true)]
-        [string]$ProjectDir,
-        [switch]$Quiet
-    )
-
-    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
-        throw "Subtitle file not found: $SubtitlePath"
-    }
-
-    if (-not (Test-Path -LiteralPath $ProjectDir)) {
-        throw "Project directory not found: $ProjectDir"
-    }
-
-    $outputPath = Join-Path $ProjectDir "transcript.txt"
-
-    return Invoke-TranscriptGenerator -InputPath $SubtitlePath -OutputPath $outputPath -PreserveParagraphs -Quiet:$Quiet
-}
-
 #endregion
 
 #region Command-line Interface

@@ -170,39 +170,6 @@ function Invoke-SubtitleMuxer {
     return $OutputPath
 }
 
-# Mux for project folder structure
-# Video is in project folder, output goes to parent directory
-function Invoke-ProjectSubtitleMuxer {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$VideoPath,
-        [Parameter(Mandatory=$true)]
-        [string]$SubtitlePath,
-        [Parameter(Mandatory=$true)]
-        [string]$ProjectDir
-    )
-
-    # Validate inputs
-    if (-not (Test-Path -LiteralPath $VideoPath)) {
-        throw "Video file not found: $VideoPath"
-    }
-    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
-        throw "Subtitle file not found: $SubtitlePath"
-    }
-    if (-not (Test-Path -LiteralPath $ProjectDir)) {
-        throw "Project directory not found: $ProjectDir"
-    }
-
-    # Get project name (folder name like [videoId]title)
-    $projectName = Split-Path -Leaf $ProjectDir
-    $parentDir = Split-Path -Parent $ProjectDir
-
-    # Output path: parent directory with project name as filename
-    $outputPath = Join-Path $parentDir "$projectName.mkv"
-
-    return Invoke-SubtitleMuxer -VideoPath $VideoPath -SubtitlePath $SubtitlePath -OutputPath $outputPath
-}
-
 #endregion
 
 #region Command-line Interface
