@@ -71,28 +71,9 @@ function ConvertTo-Transcript {
         }
     }
     else {
-        # Simple continuous text
-        $allText = ($Entries | ForEach-Object { $_.Text }) -join ' '
-
-        # Clean up multiple spaces
-        $allText = $allText -replace '\s+', ' '
-
-        # Split into lines of ~80 characters at word boundaries
-        $words = $allText -split '\s+'
-        $currentLine = ""
-
-        foreach ($word in $words) {
-            if (($currentLine.Length + $word.Length + 1) -gt 80) {
-                $lines += $currentLine.Trim()
-                $currentLine = $word
-            }
-            else {
-                $currentLine += " $word"
-            }
-        }
-
-        if ($currentLine.Trim()) {
-            $lines += $currentLine.Trim()
+        # One entry per line (default mode)
+        foreach ($entry in $Entries) {
+            $lines += $entry.Text
         }
     }
 

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(powershell:*)",
-      "Bash(yt-dlp:*)"
+      "Bash(yt-dlp:*)",
+      "Bash(wc:*)",
+      "Bash(done)"
     ]
   }
 }
