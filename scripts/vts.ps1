@@ -4,42 +4,103 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-# Dot source existing scripts
+# Dot source all scripts
+. "$PSScriptRoot\subtitle-utils.ps1"
+. "$PSScriptRoot\ai-client.ps1"
+. "$PSScriptRoot\google-translate.ps1"
+. "$PSScriptRoot\glossary.ps1"
 . "$PSScriptRoot\process.ps1"
 . "$PSScriptRoot\mux.ps1"
 . "$PSScriptRoot\download.ps1"
+. "$PSScriptRoot\transcript.ps1"
+. "$PSScriptRoot\translate.ps1"
+. "$PSScriptRoot\workflow.ps1"
+. "$PSScriptRoot\setup-wizard.ps1"
+
+#region Configuration
 
 # Config file path (in project root)
 $script:ConfigFile = "$PSScriptRoot\..\config.json"
+
+# Default configuration
+$script:Config = @{
+    FirstRun = $true
+    OutputDir = "./output"
+    CookieFile = ""
+    AiProvider = "openai"
+    AiBaseUrl = "https://api.openai.com/v1"
+    AiApiKey = ""
+    AiModel = "gpt-4o-mini"
+    TranslateMethod = "ai"
+    TargetLanguage = "zh-CN"
+}
 
 # Load config from file
 function Import-Config {
     if (Test-Path $script:ConfigFile) {
         try {
-            $config = Get-Content $script:ConfigFile -Raw | ConvertFrom-Json
-            if ($config.CookieFile) { $script:YtdlCookieFile = $config.CookieFile }
-            if ($config.DownloadDir) { $script:YtdlOutputDir = $config.DownloadDir }
-            if ($config.MuxDir) { $script:MuxerOutputDir = $config.MuxDir }
-            if ($config.ProcessedDir) { $script:ProcessedOutputDir = $config.ProcessedDir }
+            $fileConfig = Get-Content $script:ConfigFile -Raw | ConvertFrom-Json
+
+            # Update config with file values
+            if ($null -ne $fileConfig.FirstRun) { $script:Config.FirstRun = $fileConfig.FirstRun }
+            if ($fileConfig.OutputDir) { $script:Config.OutputDir = $fileConfig.OutputDir }
+            if ($null -ne $fileConfig.CookieFile) { $script:Config.CookieFile = $fileConfig.CookieFile }
+            if ($fileConfig.AiProvider) { $script:Config.AiProvider = $fileConfig.AiProvider }
+            if ($fileConfig.AiBaseUrl) { $script:Config.AiBaseUrl = $fileConfig.AiBaseUrl }
+            if ($null -ne $fileConfig.AiApiKey) { $script:Config.AiApiKey = $fileConfig.AiApiKey }
+            if ($fileConfig.AiModel) { $script:Config.AiModel = $fileConfig.AiModel }
+            if ($fileConfig.TranslateMethod) { $script:Config.TranslateMethod = $fileConfig.TranslateMethod }
+            if ($fileConfig.TargetLanguage) { $script:Config.TargetLanguage = $fileConfig.TargetLanguage }
+
+            # Backward compatibility: map old config keys
+            if ($fileConfig.DownloadDir) { $script:Config.OutputDir = $fileConfig.DownloadDir }
         } catch {
             # Ignore errors, use defaults
         }
     }
+
+    # Apply config to module variables
+    Apply-ConfigToModules
 }
 
 # Save config to file
 function Export-Config {
-    $config = @{
-        CookieFile = $script:YtdlCookieFile
-        DownloadDir = $script:YtdlOutputDir
-        MuxDir = $script:MuxerOutputDir
-        ProcessedDir = $script:ProcessedOutputDir
-    }
-    $config | ConvertTo-Json | Set-Content $script:ConfigFile -Encoding UTF8
+    $script:Config | ConvertTo-Json | Set-Content $script:ConfigFile -Encoding UTF8
+}
+
+# Apply configuration to all module variables
+function Apply-ConfigToModules {
+    # Download module
+    $script:YtdlOutputDir = $script:Config.OutputDir
+    $script:YtdlCookieFile = $script:Config.CookieFile
+
+    # Mux module
+    $script:MuxerOutputDir = $script:Config.OutputDir
+
+    # Process module
+    $script:ProcessedOutputDir = $script:Config.OutputDir
+
+    # Transcript module
+    $script:TranscriptOutputDir = $script:Config.OutputDir
+
+    # Translate module
+    $script:TranslateOutputDir = $script:Config.OutputDir
+    $script:TranslateMethod = $script:Config.TranslateMethod
+    $script:TargetLanguage = $script:Config.TargetLanguage
+
+    # Workflow module
+    $script:WorkflowOutputDir = $script:Config.OutputDir
+
+    # AI client module
+    $script:AiClient_BaseUrl = $script:Config.AiBaseUrl
+    $script:AiClient_ApiKey = $script:Config.AiApiKey
+    $script:AiClient_Model = $script:Config.AiModel
 }
 
 # Load config on startup
 Import-Config
+
+#endregion
 
 #region Helper Functions
 
@@ -52,7 +113,6 @@ function Format-DisplayPath {
     param([string]$Path)
     if (-not $Path) { return "(not set)" }
     try {
-        # Resolve to full path for display
         $resolved = [System.IO.Path]::GetFullPath($Path)
         return $resolved
     } catch {
@@ -86,24 +146,35 @@ function Show-Menu {
     Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host "                     Video Tools Suite" -ForegroundColor Yellow
     Write-Host ("=" * 60) -ForegroundColor Cyan
-    Write-Host "  Output: $(Format-DisplayPath $script:YtdlOutputDir)" -ForegroundColor DarkGray
+    Write-Host "  Output: $(Format-DisplayPath $script:Config.OutputDir)" -ForegroundColor DarkGray
     Write-Host ""
 
-    $menuItems = @(
-        @{ Key = "1"; Text = "Download Video" },
-        @{ Key = "2"; Text = "Download Subtitles Only" },
-        @{ Key = "3"; Text = "Process Subtitle Text" },
-        @{ Key = "4"; Text = "Mux Subtitle into Video" },
-        @{ Key = "5"; Text = "Process + Mux (Combined)" }
-    )
-
-    foreach ($item in $menuItems) {
-        Write-Host "  [$($item.Key)]" -ForegroundColor Green -NoNewline
-        Write-Host " $($item.Text)" -ForegroundColor White
-    }
-
+    Write-Host "  [A]" -ForegroundColor Magenta -NoNewline
+    Write-Host " All-in-One Workflow" -ForegroundColor White
     Write-Host ""
-    Write-Host "  [S]" -ForegroundColor Magenta -NoNewline
+
+    Write-Host "  --- Download ---" -ForegroundColor DarkGray
+    Write-Host "  [1]" -ForegroundColor Green -NoNewline
+    Write-Host " Download Video" -ForegroundColor White
+    Write-Host "  [2]" -ForegroundColor Green -NoNewline
+    Write-Host " Download Subtitles Only" -ForegroundColor White
+    Write-Host "  [3]" -ForegroundColor Green -NoNewline
+    Write-Host " Generate Transcript" -ForegroundColor White
+    Write-Host ""
+
+    Write-Host "  --- Subtitle ---" -ForegroundColor DarkGray
+    Write-Host "  [4]" -ForegroundColor Green -NoNewline
+    Write-Host " Translate Subtitles" -ForegroundColor White
+    Write-Host "  [5]" -ForegroundColor Green -NoNewline
+    Write-Host " Process Text (Spacing/Punctuation)" -ForegroundColor White
+    Write-Host ""
+
+    Write-Host "  --- Video ---" -ForegroundColor DarkGray
+    Write-Host "  [6]" -ForegroundColor Green -NoNewline
+    Write-Host " Mux Subtitle into Video" -ForegroundColor White
+    Write-Host ""
+
+    Write-Host "  [S]" -ForegroundColor Cyan -NoNewline
     Write-Host " Settings" -ForegroundColor White
     Write-Host "  [Q]" -ForegroundColor Red -NoNewline
     Write-Host " Quit" -ForegroundColor White
@@ -113,7 +184,7 @@ function Show-Menu {
 }
 
 function Get-MenuChoice {
-    param([string[]]$ValidChoices = @('1', '2', '3', '4', '5', 'S', 'Q'))
+    param([string[]]$ValidChoices = @('A', '1', '2', '3', '4', '5', '6', 'S', 'Q'))
 
     do {
         $choice = (Read-Host "Enter your choice").Trim().ToUpper()
@@ -122,7 +193,7 @@ function Get-MenuChoice {
             return $choice
         }
 
-        Write-Host "Invalid choice! Please enter 1-5, S or Q" -ForegroundColor Red
+        Write-Host "Invalid choice! Please enter A, 1-6, S or Q" -ForegroundColor Red
         Write-Host ""
     } while ($true)
 }
@@ -170,6 +241,35 @@ function Show-UrlFormats {
 
 #region Menu Option Functions
 
+function Invoke-FullWorkflowMenu {
+    Clear-Host
+    Show-Header "All-in-One Workflow"
+
+    try {
+        Write-Host "This will download video, translate subtitles, and mux them together." -ForegroundColor Cyan
+        Write-Host ""
+        Show-UrlFormats
+
+        $url = Read-UserInput -Prompt "Enter URL"
+        if (-not $url) {
+            Show-Error "No URL provided"
+            Pause-Menu
+            return
+        }
+
+        $result = Invoke-FullWorkflow -InputUrl $url
+
+        Write-Host ""
+        Show-Success "Workflow completed!"
+        Write-Host "Project: $($result.ProjectDir)" -ForegroundColor Gray
+    }
+    catch {
+        Show-Error $_.Exception.Message
+    }
+
+    Pause-Menu
+}
+
 function Invoke-YouTubeDownloadMenu {
     Clear-Host
     Show-Header "Download Video"
@@ -211,6 +311,69 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Write-Host "Downloading subtitles..." -ForegroundColor Yellow
         $result = Invoke-YouTubeSubtitleDownloader -InputUrl $url
         Show-Success "Subtitles downloaded to: $result"
+    }
+    catch {
+        Show-Error $_.Exception.Message
+    }
+
+    Pause-Menu
+}
+
+function Invoke-TranscriptMenu {
+    Clear-Host
+    Show-Header "Generate Transcript"
+
+    try {
+        Write-Host "This will generate a plain text transcript from subtitle file" -ForegroundColor Cyan
+        Write-Host ""
+        $file = Read-UserInput -Prompt "Enter subtitle file path (.vtt or .srt)" -ValidateFileExists
+        if (-not $file) {
+            Show-Error "No file path provided"
+            Pause-Menu
+            return
+        }
+        if ($file -is [hashtable] -and $file.Error) {
+            Show-Error $file.Error
+            Pause-Menu
+            return
+        }
+
+        Write-Host "Generating transcript..." -ForegroundColor Yellow
+        $result = Invoke-TranscriptGenerator -InputPath $file
+        Show-Success "Transcript saved to: $result"
+    }
+    catch {
+        Show-Error $_.Exception.Message
+    }
+
+    Pause-Menu
+}
+
+function Invoke-TranslateMenu {
+    Clear-Host
+    Show-Header "Translate Subtitles"
+
+    try {
+        $methodName = if ($script:Config.TranslateMethod -eq 'ai') { "AI ($($script:Config.AiModel))" } else { "Google Translate" }
+        Write-Host "Translation method: $methodName" -ForegroundColor Cyan
+        Write-Host "Target language: $($script:Config.TargetLanguage)" -ForegroundColor Cyan
+        Write-Host ""
+
+        $file = Read-UserInput -Prompt "Enter subtitle file path (.vtt or .srt)" -ValidateFileExists
+        if (-not $file) {
+            Show-Error "No file path provided"
+            Pause-Menu
+            return
+        }
+        if ($file -is [hashtable] -and $file.Error) {
+            Show-Error $file.Error
+            Pause-Menu
+            return
+        }
+
+        Write-Host ""
+        $result = Invoke-SubtitleTranslator -InputPath $file
+        Show-Success "Bilingual subtitle saved to: $($result.OutputPath)"
     }
     catch {
         Show-Error $_.Exception.Message
@@ -289,115 +452,178 @@ function Invoke-SubtitleMuxerMenu {
     Pause-Menu
 }
 
-function Invoke-CombinedOperationMenu {
-    Clear-Host
-    Show-Header "Process and Mux Combined"
-
-    try {
-        Write-Host "This will process subtitle text and mux into video" -ForegroundColor Cyan
-        $subtitleFile = Read-UserInput -Prompt "Enter raw subtitle file path" -ValidateFileExists
-        if (-not $subtitleFile) {
-            Show-Error "No subtitle file path provided"
-            Pause-Menu
-            return
-        }
-        if ($subtitleFile -is [hashtable] -and $subtitleFile.Error) {
-            Show-Error $subtitleFile.Error
-            Pause-Menu
-            return
-        }
-
-        $videoFile = Read-UserInput -Prompt "Enter video file path" -ValidateFileExists
-        if (-not $videoFile) {
-            Show-Error "No video file path provided"
-            Pause-Menu
-            return
-        }
-        if ($videoFile -is [hashtable] -and $videoFile.Error) {
-            Show-Error $videoFile.Error
-            Pause-Menu
-            return
-        }
-
-        Write-Host "Step 1/2: Processing subtitle..." -ForegroundColor Yellow
-        $processedSubtitle = Invoke-TextProcessor -InputPath $subtitleFile
-        Show-Success "Subtitle processed"
-
-        Write-Host "Step 2/2: Muxing into video..." -ForegroundColor Yellow
-        $finalVideo = Invoke-SubtitleMuxer -VideoPath $videoFile -SubtitlePath $processedSubtitle
-        Show-Success "All operations completed!"
-        Write-Host "Processed subtitle: $processedSubtitle" -ForegroundColor Gray
-        Write-Host "Final video: $finalVideo" -ForegroundColor Gray
-    }
-    catch {
-        Show-Error $_.Exception.Message
-    }
-
-    Pause-Menu
-}
-
 function Invoke-SettingsMenu {
-    Clear-Host
-    Show-Header "Settings"
+    while ($true) {
+        Clear-Host
+        Write-Host ""
+        Write-Host ("=" * 60) -ForegroundColor Cyan
+        Write-Host "                          Settings" -ForegroundColor Yellow
+        Write-Host ("=" * 60) -ForegroundColor Cyan
+        Write-Host ""
 
-    Write-Host "Current Settings:" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  [1] Cookie File:      " -ForegroundColor Gray -NoNewline
-    if ($script:YtdlCookieFile -and (Test-Path $script:YtdlCookieFile)) {
-        Write-Host $script:YtdlCookieFile -ForegroundColor Green
-    } elseif ($script:YtdlCookieFile) {
-        Write-Host "$script:YtdlCookieFile (not found)" -ForegroundColor Yellow
-    } else {
-        Write-Host "(not set)" -ForegroundColor DarkGray
-    }
-    Write-Host "  [2] Download Output:  $(Format-DisplayPath $script:YtdlOutputDir)" -ForegroundColor Gray
-    Write-Host "  [3] Mux Output:       $(Format-DisplayPath $script:MuxerOutputDir)" -ForegroundColor Gray
-    Write-Host "  [4] Processed Output: $(Format-DisplayPath $script:ProcessedOutputDir)" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  [B] Back to main menu" -ForegroundColor DarkGray
-    Write-Host ""
+        Write-Host "  --- Output ---" -ForegroundColor DarkGray
+        Write-Host "  [1] Output Directory:   " -NoNewline -ForegroundColor Gray
+        Write-Host "$(Format-DisplayPath $script:Config.OutputDir)" -ForegroundColor White
+        Write-Host ""
 
-    $choice = (Read-Host "Enter option to change (or B to go back)").Trim().ToUpper()
+        Write-Host "  --- AI ---" -ForegroundColor DarkGray
+        Write-Host "  [2] Provider:           " -NoNewline -ForegroundColor Gray
+        Write-Host "$($script:Config.AiProvider) ($($script:Config.AiBaseUrl))" -ForegroundColor White
+        Write-Host "  [3] API Key:            " -NoNewline -ForegroundColor Gray
+        if ($script:Config.AiApiKey) {
+            $maskedKey = $script:Config.AiApiKey.Substring(0, [Math]::Min(7, $script:Config.AiApiKey.Length)) + "****"
+            Write-Host $maskedKey -ForegroundColor Green
+        } else {
+            Write-Host "(not set)" -ForegroundColor Yellow
+        }
+        Write-Host "  [4] Model:              " -NoNewline -ForegroundColor Gray
+        Write-Host "$($script:Config.AiModel)" -ForegroundColor White
+        Write-Host ""
 
-    switch ($choice) {
-        '1' {
-            $newPath = Read-UserInput -Prompt "Enter new cookie file path"
-            if ($newPath) {
-                $script:YtdlCookieFile = $newPath
-                Export-Config
-                if (Test-Path $newPath) {
-                    Show-Success "Cookie file path updated and saved"
-                } else {
-                    Write-Host "Warning: File does not exist yet (setting saved)" -ForegroundColor Yellow
+        Write-Host "  --- Translation ---" -ForegroundColor DarkGray
+        Write-Host "  [5] Method:             " -NoNewline -ForegroundColor Gray
+        $methodDisplay = if ($script:Config.TranslateMethod -eq 'ai') { "AI Translation" } else { "Google Translate" }
+        Write-Host $methodDisplay -ForegroundColor White
+        Write-Host "  [6] Target Language:    " -NoNewline -ForegroundColor Gray
+        Write-Host "$($script:Config.TargetLanguage)" -ForegroundColor White
+        Write-Host ""
+
+        Write-Host "  --- Other ---" -ForegroundColor DarkGray
+        Write-Host "  [7] Glossaries..." -ForegroundColor Gray
+        Write-Host "  [8] Cookie File:        " -NoNewline -ForegroundColor Gray
+        if ($script:Config.CookieFile -and (Test-Path $script:Config.CookieFile)) {
+            Write-Host $script:Config.CookieFile -ForegroundColor Green
+        } elseif ($script:Config.CookieFile) {
+            Write-Host "$($script:Config.CookieFile) (not found)" -ForegroundColor Yellow
+        } else {
+            Write-Host "(not set)" -ForegroundColor DarkGray
+        }
+        Write-Host "  [R] Re-run Setup Wizard" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  [B] Back" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host ("=" * 60) -ForegroundColor DarkGray
+        Write-Host ""
+
+        $choice = (Read-Host "Enter option").Trim().ToUpper()
+
+        switch ($choice) {
+            '1' {
+                $newPath = Read-UserInput -Prompt "Enter new output directory"
+                if ($newPath) {
+                    $script:Config.OutputDir = $newPath
+                    Apply-ConfigToModules
+                    Export-Config
+                    Write-Host "Output directory updated" -ForegroundColor Green
+                    Start-Sleep -Seconds 1
                 }
-                Pause-Menu
             }
-        }
-        '2' {
-            $newPath = Read-UserInput -Prompt "Enter new download output directory"
-            if ($newPath) {
-                $script:YtdlOutputDir = $newPath
+            '2' {
+                Write-Host ""
+                Write-Host "  [1] OpenAI" -ForegroundColor White
+                Write-Host "  [2] DeepSeek" -ForegroundColor White
+                Write-Host "  [3] OpenRouter" -ForegroundColor White
+                Write-Host "  [4] Custom" -ForegroundColor White
+                $providerChoice = Read-Host "Select provider"
+                switch ($providerChoice) {
+                    '1' {
+                        $script:Config.AiProvider = "openai"
+                        $script:Config.AiBaseUrl = "https://api.openai.com/v1"
+                    }
+                    '2' {
+                        $script:Config.AiProvider = "deepseek"
+                        $script:Config.AiBaseUrl = "https://api.deepseek.com"
+                    }
+                    '3' {
+                        $script:Config.AiProvider = "openrouter"
+                        $script:Config.AiBaseUrl = "https://openrouter.ai/api/v1"
+                    }
+                    '4' {
+                        $script:Config.AiProvider = "custom"
+                        $customUrl = Read-Host "Enter API base URL"
+                        if ($customUrl) {
+                            $script:Config.AiBaseUrl = $customUrl
+                        }
+                    }
+                }
+                Apply-ConfigToModules
                 Export-Config
-                Show-Success "Download output directory updated and saved"
-                Pause-Menu
+                Write-Host "Provider updated" -ForegroundColor Green
+                Start-Sleep -Seconds 1
             }
-        }
-        '3' {
-            $newPath = Read-UserInput -Prompt "Enter new mux output directory"
-            if ($newPath) {
-                $script:MuxerOutputDir = $newPath
-                Export-Config
-                Show-Success "Mux output directory updated and saved"
-                Pause-Menu
+            '3' {
+                $newKey = Read-Host "Enter new API key"
+                if ($newKey) {
+                    $script:Config.AiApiKey = $newKey
+                    Apply-ConfigToModules
+                    Export-Config
+                    Write-Host "API key updated" -ForegroundColor Green
+                    Start-Sleep -Seconds 1
+                }
             }
-        }
-        '4' {
-            $newPath = Read-UserInput -Prompt "Enter new processed output directory"
-            if ($newPath) {
-                $script:ProcessedOutputDir = $newPath
+            '4' {
+                $newModel = Read-Host "Enter model name"
+                if ($newModel) {
+                    $script:Config.AiModel = $newModel
+                    Apply-ConfigToModules
+                    Export-Config
+                    Write-Host "Model updated" -ForegroundColor Green
+                    Start-Sleep -Seconds 1
+                }
+            }
+            '5' {
+                Write-Host ""
+                Write-Host "  [1] AI Translation" -ForegroundColor White
+                Write-Host "  [2] Google Translate" -ForegroundColor White
+                $methodChoice = Read-Host "Select method"
+                if ($methodChoice -eq '1') {
+                    $script:Config.TranslateMethod = "ai"
+                } elseif ($methodChoice -eq '2') {
+                    $script:Config.TranslateMethod = "google"
+                }
+                Apply-ConfigToModules
                 Export-Config
-                Show-Success "Processed output directory updated and saved"
-                Pause-Menu
+                Write-Host "Translation method updated" -ForegroundColor Green
+                Start-Sleep -Seconds 1
+            }
+            '6' {
+                Write-Host ""
+                Write-Host "Common options: zh-CN, zh-TW, ja, ko, en" -ForegroundColor Gray
+                $newLang = Read-Host "Enter target language code"
+                if ($newLang) {
+                    $script:Config.TargetLanguage = $newLang
+                    Apply-ConfigToModules
+                    Export-Config
+                    Write-Host "Target language updated" -ForegroundColor Green
+                    Start-Sleep -Seconds 1
+                }
+            }
+            '7' {
+                Show-GlossaryMenu
+            }
+            '8' {
+                $newPath = Read-UserInput -Prompt "Enter cookie file path"
+                if ($newPath) {
+                    $script:Config.CookieFile = $newPath
+                    Apply-ConfigToModules
+                    Export-Config
+                    if (Test-Path $newPath) {
+                        Write-Host "Cookie file path updated" -ForegroundColor Green
+                    } else {
+                        Write-Host "Cookie file path saved (file not found yet)" -ForegroundColor Yellow
+                    }
+                    Start-Sleep -Seconds 1
+                }
+            }
+            'R' {
+                $script:Config.FirstRun = $true
+                $newConfig = Start-SetupWizard
+                $script:Config = $newConfig
+                Apply-ConfigToModules
+                Export-Config
+            }
+            'B' {
+                return
             }
         }
     }
@@ -408,17 +634,27 @@ function Invoke-SettingsMenu {
 #region Main Menu Loop
 
 function Start-MainMenu {
+    # Check for first run
+    if ($script:Config.FirstRun) {
+        $newConfig = Start-SetupWizard
+        $script:Config = $newConfig
+        Apply-ConfigToModules
+        Export-Config
+    }
+
     $running = $true
 
     while ($running) {
         Show-Menu
 
         switch (Get-MenuChoice) {
+            'A' { Invoke-FullWorkflowMenu }
             '1' { Invoke-YouTubeDownloadMenu }
             '2' { Invoke-SubtitleOnlyDownloadMenu }
-            '3' { Invoke-TextProcessorMenu }
-            '4' { Invoke-SubtitleMuxerMenu }
-            '5' { Invoke-CombinedOperationMenu }
+            '3' { Invoke-TranscriptMenu }
+            '4' { Invoke-TranslateMenu }
+            '5' { Invoke-TextProcessorMenu }
+            '6' { Invoke-SubtitleMuxerMenu }
             'S' { Invoke-SettingsMenu }
             'Q' {
                 Clear-Host

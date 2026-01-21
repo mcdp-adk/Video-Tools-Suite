@@ -1,0 +1,193 @@
+# Command-line parameter (must be first for dot sourcing compatibility)
+param([string]$InputPath)
+
+# Transcript generation module
+# Converts subtitle files to plain text transcripts
+
+# Dot source subtitle utilities if not already loaded
+if (-not (Get-Command "Import-SubtitleFile" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\subtitle-utils.ps1"
+}
+
+# Configuration
+$script:TranscriptOutputDir = "$PSScriptRoot\..\output"
+
+#region Core Functions
+
+# Generate plain text transcript from subtitle entries
+function ConvertTo-Transcript {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Entries,
+        [switch]$IncludeTimestamps,
+        [switch]$PreserveParagraphs
+    )
+
+    $lines = @()
+
+    if ($IncludeTimestamps) {
+        foreach ($entry in $Entries) {
+            $timestamp = "{0:hh\:mm\:ss}" -f $entry.StartTime
+            $lines += "[$timestamp] $($entry.Text)"
+        }
+    }
+    elseif ($PreserveParagraphs) {
+        # Group entries into paragraphs based on pauses
+        $currentParagraph = @()
+        $lastEndTime = $null
+
+        foreach ($entry in $Entries) {
+            if ($lastEndTime) {
+                $gap = ($entry.StartTime - $lastEndTime).TotalSeconds
+                if ($gap -gt 2) {
+                    # Start new paragraph
+                    if ($currentParagraph.Count -gt 0) {
+                        $lines += ($currentParagraph -join ' ')
+                        $lines += ""
+                    }
+                    $currentParagraph = @()
+                }
+            }
+
+            $currentParagraph += $entry.Text
+            $lastEndTime = $entry.EndTime
+        }
+
+        # Add final paragraph
+        if ($currentParagraph.Count -gt 0) {
+            $lines += ($currentParagraph -join ' ')
+        }
+    }
+    else {
+        # Simple continuous text
+        $allText = ($Entries | ForEach-Object { $_.Text }) -join ' '
+
+        # Clean up multiple spaces
+        $allText = $allText -replace '\s+', ' '
+
+        # Split into lines of ~80 characters at word boundaries
+        $words = $allText -split '\s+'
+        $currentLine = ""
+
+        foreach ($word in $words) {
+            if (($currentLine.Length + $word.Length + 1) -gt 80) {
+                $lines += $currentLine.Trim()
+                $currentLine = $word
+            }
+            else {
+                $currentLine += " $word"
+            }
+        }
+
+        if ($currentLine.Trim()) {
+            $lines += $currentLine.Trim()
+        }
+    }
+
+    return ($lines -join "`n")
+}
+
+# Main function: Generate transcript from subtitle file
+function Invoke-TranscriptGenerator {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$InputPath,
+        [string]$OutputPath = "",
+        [switch]$IncludeTimestamps,
+        [switch]$PreserveParagraphs
+    )
+
+    if (-not (Test-Path -LiteralPath $InputPath)) {
+        throw "Subtitle file not found: $InputPath"
+    }
+
+    # Load subtitle file
+    Write-Host "Loading subtitle file..." -ForegroundColor Cyan
+    $subtitleData = Import-SubtitleFile -Path $InputPath
+    $entries = $subtitleData.Entries
+
+    if ($entries.Count -eq 0) {
+        throw "No subtitle entries found in file"
+    }
+
+    Write-Host "Found $($entries.Count) subtitle entries" -ForegroundColor Gray
+
+    # Generate transcript
+    Write-Host "Generating transcript..." -ForegroundColor Cyan
+    $transcript = ConvertTo-Transcript -Entries $entries -IncludeTimestamps:$IncludeTimestamps -PreserveParagraphs:$PreserveParagraphs
+
+    # Determine output path
+    if (-not $OutputPath) {
+        # Ensure output directory exists
+        if (-not (Test-Path $script:TranscriptOutputDir)) {
+            New-Item -ItemType Directory -Path $script:TranscriptOutputDir -Force | Out-Null
+        }
+
+        $file = Get-Item $InputPath
+        $OutputPath = Join-Path $script:TranscriptOutputDir "$($file.BaseName)_transcript.txt"
+    }
+
+    # Write transcript
+    $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
+    [System.IO.File]::WriteAllText($OutputPath, $transcript, $utf8WithBom)
+
+    Write-Host "Transcript saved to: $OutputPath" -ForegroundColor Green
+
+    return $OutputPath
+}
+
+# Generate transcript directly to a project folder
+function Invoke-ProjectTranscriptGenerator {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SubtitlePath,
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir
+    )
+
+    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
+        throw "Subtitle file not found: $SubtitlePath"
+    }
+
+    if (-not (Test-Path -LiteralPath $ProjectDir)) {
+        throw "Project directory not found: $ProjectDir"
+    }
+
+    $outputPath = Join-Path $ProjectDir "transcript.txt"
+
+    return Invoke-TranscriptGenerator -InputPath $SubtitlePath -OutputPath $outputPath -PreserveParagraphs
+}
+
+#endregion
+
+#region Command-line Interface
+
+if ($InputPath) {
+    try {
+        Write-Host "================================================" -ForegroundColor Cyan
+        Write-Host "Transcript Generator" -ForegroundColor Yellow
+        Write-Host "================================================" -ForegroundColor Cyan
+        Write-Host ""
+
+        $result = Invoke-TranscriptGenerator -InputPath $InputPath -PreserveParagraphs
+
+        Write-Host ""
+        Write-Host "Success!" -ForegroundColor Green
+        Write-Host "Output: $result" -ForegroundColor Gray
+    }
+    catch {
+        Write-Host "Error: $_" -ForegroundColor Red
+        exit 1
+    }
+}
+elseif ($MyInvocation.InvocationName -ne '.') {
+    Write-Host "Usage: transcript.bat <subtitle_file>" -ForegroundColor Yellow
+    Write-Host "Generates a plain text transcript from VTT or SRT subtitle file" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Examples:" -ForegroundColor Gray
+    Write-Host "  transcript.bat video.en.vtt" -ForegroundColor Gray
+    Write-Host "  transcript.bat subtitles.srt" -ForegroundColor Gray
+    exit 1
+}
+
+#endregion

@@ -9,7 +9,9 @@ $script:MuxerOutputDir = "$PSScriptRoot\..\output"
 $script:DefaultSubtitleLang = "chi"
 $script:DefaultSubtitleTitle = "Bilingual Subtitles"
 
-# Helper function: Check ffmpeg availability
+#region Helper Functions
+
+# Check ffmpeg availability
 function Test-FfmpegAvailable {
     try {
         $null = Get-Command ffmpeg -ErrorAction Stop
@@ -19,7 +21,7 @@ function Test-FfmpegAvailable {
     }
 }
 
-# Helper function: Get existing subtitle streams from video
+# Get existing subtitle streams from video
 function Get-ExistingSubtitleStreams {
     param([string]$VideoPath)
 
@@ -33,7 +35,7 @@ function Get-ExistingSubtitleStreams {
     }
 }
 
-# Helper function: Build ffmpeg arguments for muxing
+# Build ffmpeg arguments for muxing
 function Build-FfmpegArgs {
     param(
         [string]$VideoPath,
@@ -43,8 +45,10 @@ function Build-FfmpegArgs {
     )
 
     # Base arguments: input files and stream mapping
+    # Use -sub_charenc to ensure UTF-8 encoding for subtitle input
     $ffArgs = @(
         "-i", $VideoPath,
+        "-sub_charenc", "UTF-8",
         "-i", $SubtitlePath,
         "-map", "0:v",
         "-map", "0:a?",
@@ -90,20 +94,27 @@ function Build-FfmpegArgs {
     return $ffArgs
 }
 
+#endregion
+
+#region Main Functions
+
 # Function interface for TUI integration
 function Invoke-SubtitleMuxer {
     param(
         [Parameter(Mandatory=$true)]
         [string]$VideoPath,
         [Parameter(Mandatory=$true)]
-        [string]$SubtitlePath
+        [string]$SubtitlePath,
+        [string]$OutputPath = "",
+        [string]$OutputName = "",
+        [switch]$Quiet
     )
 
     # Validate inputs
-    if (-not (Test-Path $VideoPath)) {
+    if (-not (Test-Path -LiteralPath $VideoPath)) {
         throw "Video file not found: $VideoPath"
     }
-    if (-not (Test-Path $SubtitlePath)) {
+    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
         throw "Subtitle file not found: $SubtitlePath"
     }
 
@@ -114,23 +125,47 @@ function Invoke-SubtitleMuxer {
         New-Item -ItemType Directory -Path $script:MuxerOutputDir -Force | Out-Null
     }
 
-    # Build output path (always use MKV for better subtitle compatibility)
-    $videoFile = Get-Item $VideoPath
-    $outputName = [System.IO.Path]::ChangeExtension($videoFile.Name, ".mkv")
-    $outputPath = Join-Path $script:MuxerOutputDir $outputName
+    # Determine output path
+    if (-not $OutputPath) {
+        $videoFile = Get-Item -LiteralPath $VideoPath
+
+        if ($OutputName) {
+            # Use custom output name
+            $outputFileName = if ($OutputName -match '\.mkv$') { $OutputName } else { "$OutputName.mkv" }
+        }
+        else {
+            # Default: use video filename with .mkv extension
+            $outputFileName = [System.IO.Path]::ChangeExtension($videoFile.Name, ".mkv")
+        }
+
+        $OutputPath = Join-Path $script:MuxerOutputDir $outputFileName
+    }
 
     # Get existing subtitle streams
     $existingSubtitles = @(Get-ExistingSubtitleStreams -VideoPath $VideoPath)
 
     if ($existingSubtitles.Count -gt 0) {
-        Write-Host "Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..."
+        Write-Host "Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..." -ForegroundColor Gray
     }
 
     # Build and execute ffmpeg command
     $ffmpegArgs = Build-FfmpegArgs -VideoPath $VideoPath -SubtitlePath $SubtitlePath `
-                                   -OutputPath $outputPath -ExistingSubtitleStreams $existingSubtitles
+                                   -OutputPath $OutputPath -ExistingSubtitleStreams $existingSubtitles
 
-    $ffmpegOutput = & ffmpeg $ffmpegArgs 2>&1
+    if (-not $Quiet) {
+        Write-Host "Muxing subtitle into video..." -ForegroundColor Cyan
+    }
+
+    # Update window title for progress display
+    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $Host.UI.RawUI.WindowTitle = "VTS: Muxing subtitles..."
+
+    try {
+        $ffmpegOutput = & ffmpeg $ffmpegArgs 2>&1
+    }
+    finally {
+        $Host.UI.RawUI.WindowTitle = $originalTitle
+    }
 
     if ($LASTEXITCODE -ne 0) {
         # Show last few lines of ffmpeg output for debugging
@@ -138,10 +173,46 @@ function Invoke-SubtitleMuxer {
         throw "ffmpeg failed with exit code $LASTEXITCODE`n$errorLines"
     }
 
-    return $outputPath
+    return $OutputPath
 }
 
-# Command-line interface (when script is called directly)
+# Mux for project folder structure
+# Video is in project folder, output goes to parent directory
+function Invoke-ProjectSubtitleMuxer {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$VideoPath,
+        [Parameter(Mandatory=$true)]
+        [string]$SubtitlePath,
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir
+    )
+
+    # Validate inputs
+    if (-not (Test-Path -LiteralPath $VideoPath)) {
+        throw "Video file not found: $VideoPath"
+    }
+    if (-not (Test-Path -LiteralPath $SubtitlePath)) {
+        throw "Subtitle file not found: $SubtitlePath"
+    }
+    if (-not (Test-Path -LiteralPath $ProjectDir)) {
+        throw "Project directory not found: $ProjectDir"
+    }
+
+    # Get project name (folder name like [videoId]title)
+    $projectName = Split-Path -Leaf $ProjectDir
+    $parentDir = Split-Path -Parent $ProjectDir
+
+    # Output path: parent directory with project name as filename
+    $outputPath = Join-Path $parentDir "$projectName.mkv"
+
+    return Invoke-SubtitleMuxer -VideoPath $VideoPath -SubtitlePath $SubtitlePath -OutputPath $outputPath
+}
+
+#endregion
+
+#region Command-line Interface
+
 if ($VideoPath -and $SubtitlePath) {
     try {
         $videoFile = Get-Item $VideoPath
@@ -167,3 +238,5 @@ if ($VideoPath -and $SubtitlePath) {
     Write-Host "Example: mux.bat video.mkv subtitle.ass" -ForegroundColor Gray
     exit 1
 }
+
+#endregion

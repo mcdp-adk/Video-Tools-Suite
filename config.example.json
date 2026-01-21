@@ -1,6 +1,11 @@
 {
+  "FirstRun": true,
+  "OutputDir": "./output",
   "CookieFile": "",
-  "DownloadDir": "./output",
-  "MuxDir": "./output",
-  "ProcessedDir": "./output"
+  "AiProvider": "openai",
+  "AiBaseUrl": "https://api.openai.com/v1",
+  "AiApiKey": "",
+  "AiModel": "gpt-4o-mini",
+  "TranslateMethod": "ai",
+  "TargetLanguage": "zh-CN"
 }

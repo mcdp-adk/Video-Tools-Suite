@@ -18,7 +18,7 @@ function Invoke-TextProcessor {
         [string]$InputPath
     )
 
-    if (-not (Test-Path $InputPath)) {
+    if (-not (Test-Path -LiteralPath $InputPath)) {
         throw "File not found: $InputPath"
     }
 
@@ -28,7 +28,7 @@ function Invoke-TextProcessor {
     }
 
     # Build output path
-    $file = Get-Item $InputPath
+    $file = Get-Item -LiteralPath $InputPath
     $outputPath = Join-Path $script:ProcessedOutputDir "$($file.BaseName)_processed$($file.Extension)"
 
     # Read file content
