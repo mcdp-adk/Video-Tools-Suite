@@ -6,6 +6,9 @@ $script:AiClient_BaseUrl = "https://api.openai.com/v1"
 $script:AiClient_ApiKey = ""
 $script:AiClient_Model = "gpt-4o-mini"
 
+# Sentence segmentation cache (avoid duplicate AI calls within same session)
+$script:SentenceCache = @{}
+
 #region Core API
 
 # Invoke OpenAI-compatible chat completion API
@@ -360,6 +363,19 @@ function Invoke-SentenceSegmentation {
         [int]$MaxSteps = 3
     )
 
+    # Cache key based on text hash (avoid duplicate AI calls for same text)
+    $textHash = [System.BitConverter]::ToString(
+        [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($FullText)
+        )
+    ).Replace("-", "").Substring(0, 16)
+
+    # Check cache
+    if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
+        Write-Host "  Using cached segmentation result" -ForegroundColor Gray
+        return $script:SentenceCache[$textHash]
+    }
+
     $systemPrompt = @"
 You are a subtitle segmentation expert. Your task is to insert <br> markers to split text into readable subtitle segments.
 
@@ -403,6 +419,11 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
             # Split long sentences (> MaxWords)
             $sentences = Split-LongSentences -Sentences $sentences -MaxWords $MaxWordsEnglish
             Write-Host "  Split into $($sentences.Count) sentences" -ForegroundColor Green
+
+            # Store in cache for reuse
+            if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
+            $script:SentenceCache[$textHash] = $sentences
+
             return $sentences
         }
 
@@ -418,12 +439,128 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
         # Still apply post-processing to fallback result
         $lastResult = Merge-ShortSentences -Sentences $lastResult -MinWords 5
         $lastResult = Split-LongSentences -Sentences $lastResult -MaxWords $MaxWordsEnglish
+
+        # Store in cache even for fallback
+        if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
+        $script:SentenceCache[$textHash] = $lastResult
+
         return $lastResult
     }
 
     # Fallback: simple split by punctuation
     Write-Warning "AI segmentation failed, using fallback"
-    return @($FullText -split '[.!?]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $fallback = @($FullText -split '[.!?]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
+    # Store fallback in cache
+    if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
+    $script:SentenceCache[$textHash] = $fallback
+
+    return $fallback
+}
+
+# Word-based segmentation: AI inserts <br> markers, we split by word index
+# Returns array of objects: @{ StartIndex; EndIndex; Text }
+function Invoke-WordBasedSegmentation {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Words,  # Array of @{ Word; StartTime }
+        [int]$MaxWordsPerSegment = 18,
+        [int]$MinWordsPerSegment = 5,
+        [int]$MaxAttempts = 3
+    )
+
+    # Build word text for AI
+    $wordTexts = @($Words | ForEach-Object { $_.Word })
+    $fullText = $wordTexts -join ' '
+
+    # Cache key
+    $textHash = [System.BitConverter]::ToString(
+        [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($fullText)
+        )
+    ).Replace("-", "").Substring(0, 16)
+
+    if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
+        Write-Host "  Using cached segmentation result" -ForegroundColor Gray
+        return $script:SentenceCache[$textHash]
+    }
+
+    $systemPrompt = @"
+You are a subtitle segmentation expert. Insert <br> markers to split text into subtitle segments.
+
+RULES:
+1. Each segment should be $MinWordsPerSegment-$MaxWordsPerSegment words
+2. Insert <br> at natural breaks: after sentences, at commas, conjunctions (and, but, because, so)
+3. DO NOT modify any words - only insert <br> markers between words
+4. DO NOT create segments shorter than $MinWordsPerSegment words unless it's the last segment
+5. Return ONLY the text with <br> markers, no explanations
+
+Example input: "hello world this is a test of the system"
+Example output: "hello world this is a test<br>of the system"
+"@
+
+    $userPrompt = "Insert <br> markers to segment this text:`n$fullText"
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        Write-Host "  Segmenting with word-based method (attempt $attempt/$MaxAttempts)..." -ForegroundColor Gray
+
+        $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.1 -MaxTokens 8192
+
+        # Clean response
+        $segmentedText = ($response -replace "`r?`n", " ").Trim()
+
+        # Validate: check word count matches
+        $responseWords = @(($segmentedText -replace '<br>', ' ') -split '\s+' | Where-Object { $_ })
+        if ($responseWords.Count -ne $wordTexts.Count) {
+            Write-Warning "Word count mismatch: expected $($wordTexts.Count), got $($responseWords.Count)"
+            $userPrompt = "Error: You modified the text. Original has $($wordTexts.Count) words, your response has $($responseWords.Count). Return the EXACT original text with only <br> markers inserted:`n$fullText"
+            continue
+        }
+
+        # Parse segments by <br> positions
+        $segments = @()
+        $currentWordIndex = 0
+        $parts = $segmentedText -split '<br>'
+
+        foreach ($part in $parts) {
+            $partWords = @($part.Trim() -split '\s+' | Where-Object { $_ })
+            if ($partWords.Count -eq 0) { continue }
+
+            $startIndex = $currentWordIndex
+            $endIndex = $currentWordIndex + $partWords.Count - 1
+
+            if ($endIndex -ge $Words.Count) {
+                Write-Warning "Index out of range: endIndex=$endIndex, Words.Count=$($Words.Count)"
+                break
+            }
+
+            $segments += @{
+                StartIndex = $startIndex
+                EndIndex = $endIndex
+                Text = $partWords -join ' '
+            }
+
+            $currentWordIndex = $endIndex + 1
+        }
+
+        if ($segments.Count -gt 0) {
+            Write-Host "  Split into $($segments.Count) segments" -ForegroundColor Green
+
+            # Cache result
+            if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
+            $script:SentenceCache[$textHash] = $segments
+
+            return $segments
+        }
+    }
+
+    # Fallback: single segment
+    Write-Warning "Word-based segmentation failed, using single segment"
+    return @(@{
+        StartIndex = 0
+        EndIndex = $Words.Count - 1
+        Text = $fullText
+    })
 }
 
 # Validate sentence segmentation result
@@ -709,6 +846,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
 
                 # Extract JSON with enhanced parsing
                 $jsonContent = $response
+
                 # 1. Try Markdown code block
                 if ($response -match '```(?:json)?\s*([\s\S]*?)\s*```') {
                     $jsonContent = $Matches[1]
@@ -717,11 +855,25 @@ Only include entries that need changes. Respond ONLY with the JSON array.
                 elseif ($response -match '\[[\s\S]*\]') {
                     $jsonContent = $Matches[0]
                 }
-                # 3. Try JSON object {...}
+                # 3. Handle multiple JSON objects (not in array)
+                # AI sometimes returns: {obj1}, {obj2}, ... instead of [{obj1}, {obj2}]
+                elseif ($response -match '\{[^{}]*"index"') {
+                    # Extract all JSON objects and wrap in array
+                    $objects = [regex]::Matches($response, '\{[^{}]*"index"[^{}]*"translation"[^{}]*\}')
+                    if ($objects.Count -gt 0) {
+                        $jsonContent = '[' + (($objects | ForEach-Object { $_.Value }) -join ',') + ']'
+                    }
+                }
+                # 4. Single JSON object {...}
                 elseif ($response -match '\{[\s\S]*\}') {
                     $jsonContent = $Matches[0]
                 }
+
+                # Clean up common issues
                 $jsonContent = $jsonContent.Trim()
+                # Remove trailing punctuation after JSON (like "}." or "},")
+                $jsonContent = $jsonContent -replace '\}[\s]*[.,;:!?]+\s*$', '}'
+                $jsonContent = $jsonContent -replace '\][\s]*[.,;:!?]+\s*$', ']'
 
                 # Skip if empty response (no changes needed for this batch)
                 if (-not $jsonContent -or $jsonContent -eq '[]') {
