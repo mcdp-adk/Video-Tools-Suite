@@ -357,13 +357,13 @@ function Invoke-SubtitleDownload {
 
     # Get subtitle info
     if (-not $Quiet) {
-        Show-Info "  Analyzing subtitles..."
+        Show-Info "Analyzing subtitles..."
     }
 
     $subInfo = Get-VideoSubtitleInfo -Url $Url -TargetLanguage $TargetLanguage
     if (-not $subInfo.Success) {
         if (-not $Quiet) {
-            Show-Warning "    Warning: $($subInfo.Error)"
+            Show-Warning "Warning: $($subInfo.Error)" -Indent 2
         }
         return @{
             SubtitleFile = $null
@@ -376,13 +376,13 @@ function Invoke-SubtitleDownload {
     $videoLang = $subInfo.VideoLanguage
 
     if (-not $Quiet) {
-        Show-Detail "    Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })"
+        Show-Detail "Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })" -Indent 2
     }
 
     # Priority 1: Check if target language manual subtitle exists
     if ($TargetLanguage -and $subInfo.HasTargetLanguageSub) {
         if (-not $Quiet) {
-            Show-Success "    Found target language ($TargetLanguage) manual subtitle - already embedded in video"
+            Show-Success "Found target language ($TargetLanguage) manual subtitle - already embedded in video" -Indent 2
         }
         return @{
             SubtitleFile = $null
@@ -395,7 +395,7 @@ function Invoke-SubtitleDownload {
     # Priority 2: Video language manual subtitle
     if ($videoLang -and ($subInfo.ManualSubtitles -contains $videoLang)) {
         if (-not $Quiet) {
-            Show-Info "    Downloading manual subtitle ($videoLang)..."
+            Show-Info "Downloading manual subtitle ($videoLang)..." -Indent 2
         }
 
         $subArgs = $cookieArgs + $commonArgs + @(
@@ -425,7 +425,7 @@ function Invoke-SubtitleDownload {
     $origKey = "$videoLang-orig"
     if ($videoLang -and ($subInfo.AutoSubtitles -contains $origKey)) {
         if (-not $Quiet) {
-            Show-Info "    Downloading auto-generated subtitle ($origKey)..."
+            Show-Info "Downloading auto-generated subtitle ($origKey)..." -Indent 2
         }
 
         $subArgs = $cookieArgs + $commonArgs + @(
@@ -453,7 +453,7 @@ function Invoke-SubtitleDownload {
 
     # No suitable subtitle found
     if (-not $Quiet) {
-        Show-Warning "    Warning: No suitable subtitle found for this video"
+        Show-Warning "No suitable subtitle found for this video" -Indent 2
     }
 
     return @{
@@ -508,10 +508,10 @@ if ($MyInvocation.InvocationName -ne '.') {
         Show-Warning "Usage: download.bat <url>"
         Show-Info "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)"
         Show-Hint "Examples:"
-        Show-Hint "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        Show-Hint "  download.bat https://www.youtube.com/live/XXXXXXXXXXX"
-        Show-Hint "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX"
-        Show-Hint "  download.bat dQw4w9WgXcQ  (YouTube video ID)"
+        Show-Hint "download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        Show-Hint "download.bat https://www.youtube.com/live/XXXXXXXXXXX"
+        Show-Hint "download.bat https://www.bilibili.com/video/BVXXXXXXXXX"
+        Show-Hint "download.bat dQw4w9WgXcQ  (YouTube video ID)"
         exit 1
     }
 }

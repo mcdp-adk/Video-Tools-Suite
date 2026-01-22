@@ -53,27 +53,47 @@ function Show-Warning {
 }
 
 # Display info message (cyan) - progress, loading, processing
+# Auto adds blank line before (use -NoBlankBefore to disable)
 function Show-Info {
-    param([string]$Message)
+    param(
+        [string]$Message,
+        [switch]$NoBlankBefore
+    )
+    if (-not $NoBlankBefore) { Write-Host "" }
     Write-ColoredMessage -Message $Message -Color Cyan
 }
 
 # Display step indicator (magenta) - "[Step X/Y] ..." progress steps
+# Auto adds blank line before (use -NoBlankBefore to disable)
 function Show-Step {
-    param([string]$Message)
+    param(
+        [string]$Message,
+        [switch]$NoBlankBefore
+    )
+    if (-not $NoBlankBefore) { Write-Host "" }
     Write-ColoredMessage -Message $Message -Color Magenta
 }
 
 # Display detail message (gray) - secondary info, key-value pairs
+# Auto indents with 2 spaces per indent level (default: 1)
 function Show-Detail {
-    param([string]$Message)
-    Write-ColoredMessage -Message $Message -Color Gray
+    param(
+        [string]$Message,
+        [int]$Indent = 1
+    )
+    $prefix = "  " * $Indent
+    Write-ColoredMessage -Message "$prefix$Message" -Color Gray
 }
 
 # Display hint message (dark gray) - descriptions, help text, examples
+# Auto indents with 2 spaces per indent level (default: 1)
 function Show-Hint {
-    param([string]$Message)
-    Write-ColoredMessage -Message $Message -Color DarkGray
+    param(
+        [string]$Message,
+        [int]$Indent = 1
+    )
+    $prefix = "  " * $Indent
+    Write-ColoredMessage -Message "$prefix$Message" -Color DarkGray
 }
 
 #endregion

@@ -380,7 +380,7 @@ function Invoke-SentenceSegmentation {
 
     # Check cache
     if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
-        Show-Detail "  Using cached segmentation result"
+        Show-Detail "Using cached segmentation result"
         return $script:SentenceCache[$textHash]
     }
 
@@ -409,7 +409,7 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
     $lastResult = $null
 
     for ($step = 0; $step -lt $MaxSteps; $step++) {
-        Show-Detail "  Segmenting text with AI (attempt $($step + 1)/$MaxSteps)..."
+        Show-Detail "Segmenting text with AI (attempt $($step + 1)/$MaxSteps)..."
 
         $response = Invoke-AiCompletionWithHistory -SystemPrompt $systemPrompt -Messages $messages -Temperature 0.1 -MaxTokens 8192
 
@@ -597,7 +597,7 @@ function Invoke-CueBasedSegmentation {
         if ($batchWords.Count -eq 0) { continue }
 
         if (-not $Quiet) {
-            Show-Detail "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..."
+            Show-Detail "Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..."
         }
 
         # Get segments for this batch using AI
@@ -754,7 +754,7 @@ function Invoke-WordBasedSegmentation {
     ).Replace("-", "").Substring(0, 16)
 
     if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
-        Show-Detail "  Using cached segmentation result"
+        Show-Detail "Using cached segmentation result"
         return $script:SentenceCache[$textHash]
     }
 
@@ -775,7 +775,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
     $userPrompt = "Insert <br> markers to segment this text:`n$fullText"
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        Show-Detail "  Segmenting with word-based method (attempt $attempt/$MaxAttempts)..."
+        Show-Detail "Segmenting with word-based method (attempt $attempt/$MaxAttempts)..."
 
         $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.1 -MaxTokens 8192
 
@@ -995,7 +995,7 @@ Respond ONLY with the JSON array, no explanations.
             $userPrompt = "${contextSection}Translate these subtitles:`n" + ($batchEntries | ConvertTo-Json -Depth 5)
 
             try {
-                if (-not $Quiet) { Show-Detail "  Translating batch $($batchIndex + 1)/$totalBatches..." }
+                if (-not $Quiet) { Show-Detail "Translating batch $($batchIndex + 1)/$totalBatches..." }
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.3
 
@@ -1118,7 +1118,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
             $userPrompt = "Proofread these translations (batch $($batchIndex + 1)/$totalBatches):`n" + ($batchInput | ConvertTo-Json -Depth 5)
 
             try {
-                if (-not $Quiet) { Show-Detail "  Proofreading batch $($batchIndex + 1)/$totalBatches..." }
+                if (-not $Quiet) { Show-Detail "Proofreading batch $($batchIndex + 1)/$totalBatches..." }
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
 

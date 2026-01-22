@@ -31,7 +31,7 @@ function Start-SetupWizard {
     Write-Host "                Welcome to Video Tools Suite!" -ForegroundColor Yellow
     Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host ""
-    Show-Detail "  Let's set up a few things before we start."
+    Show-Detail "Let's set up a few things before we start."
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
@@ -44,36 +44,36 @@ function Start-SetupWizard {
 
     #region Step 1: Output Directory
     Show-Step "Step 1/6: Output Directory"
-    Show-Detail "  Where should files be saved?"
+    Show-Detail "Where should files be saved?"
     Write-Host ""
     $outputDir = Read-Host "  [./output, press Enter for default]"
     if ($outputDir) {
         $config.OutputDir = $outputDir
     }
-    Show-Success "  Output: $($config.OutputDir)"
+    Show-Success "Output: $($config.OutputDir)"
     Write-Host ""
     #endregion
 
     #region Step 2: Cookie File (Required)
     Show-Step "Step 2/6: Cookie File"
     Write-Host ""
-    Show-Detail "  For downloading videos (especially age-restricted or member-only),"
-    Show-Detail "  you need to provide a cookie file exported from your browser."
+    Show-Detail "For downloading videos (especially age-restricted or member-only),"
+    Show-Detail "you need to provide a cookie file exported from your browser."
     Write-Host ""
 
     do {
         $cookiePath = Read-Host "  Enter cookie file path"
         if (-not $cookiePath) {
-            Show-Error "  Cookie file is required. Please enter a valid path."
+            Show-Error "Cookie file is required. Please enter a valid path."
         } elseif (-not (Test-Path $cookiePath)) {
-            Show-Error "  File not found: $cookiePath"
-            Show-Warning "  Please check the path and try again."
+            Show-Error "File not found: $cookiePath"
+            Show-Warning "Please check the path and try again."
             $cookiePath = ""
         }
     } while (-not $cookiePath)
 
     $config.CookieFile = $cookiePath
-    Show-Success "  Cookie file set: $cookiePath"
+    Show-Success "Cookie file set: $cookiePath"
     Write-Host ""
     #endregion
 
@@ -81,16 +81,16 @@ function Start-SetupWizard {
     Show-Step "Step 3/6: AI Provider"
     Write-Host ""
     Write-Host "  [1] OpenAI (Recommended)" -ForegroundColor White
-    Show-Hint "      https://api.openai.com/v1"
+    Show-Hint "https://api.openai.com/v1" -Indent 2
     Write-Host ""
     Write-Host "  [2] DeepSeek" -ForegroundColor White
-    Show-Hint "      https://api.deepseek.com"
+    Show-Hint "https://api.deepseek.com" -Indent 2
     Write-Host ""
     Write-Host "  [3] OpenRouter" -ForegroundColor White
-    Show-Hint "      https://openrouter.ai/api/v1"
+    Show-Hint "https://openrouter.ai/api/v1" -Indent 2
     Write-Host ""
     Write-Host "  [4] Custom" -ForegroundColor White
-    Show-Hint "      Enter your own API endpoint"
+    Show-Hint "Enter your own API endpoint" -Indent 2
     Write-Host ""
 
     do {
@@ -102,24 +102,24 @@ function Start-SetupWizard {
         '1' {
             $config.AiProvider = "openai"
             $config.AiBaseUrl = "https://api.openai.com/v1"
-            Show-Success "  OpenAI selected"
+            Show-Success "OpenAI selected"
         }
         '2' {
             $config.AiProvider = "deepseek"
             $config.AiBaseUrl = "https://api.deepseek.com"
-            Show-Success "  DeepSeek selected"
+            Show-Success "DeepSeek selected"
         }
         '3' {
             $config.AiProvider = "openrouter"
             $config.AiBaseUrl = "https://openrouter.ai/api/v1"
-            Show-Success "  OpenRouter selected"
+            Show-Success "OpenRouter selected"
         }
         '4' {
             $config.AiProvider = "custom"
             Write-Host ""
             $customUrl = Read-Host "  Enter API base URL"
             $config.AiBaseUrl = $customUrl
-            Show-Success "  Custom provider selected"
+            Show-Success "Custom provider selected"
         }
     }
     Write-Host ""
@@ -153,13 +153,13 @@ function Start-SetupWizard {
             $label = if ($i -eq 0) { "$model (Recommended)" } else { $model }
             Write-Host "  [$($i + 1)] $label" -ForegroundColor White
             if ($modelDescriptions.ContainsKey($model)) {
-                Show-Hint "      $($modelDescriptions[$model])"
+            Show-Hint "$($modelDescriptions[$model])" -Indent 2
             }
             Write-Host ""
         }
         Write-Host "  [$maxChoice] Custom" -ForegroundColor White
         if ($config.AiProvider -eq 'openrouter') {
-            Show-Hint "      Visit openrouter.ai/models for available models"
+            Show-Hint "Visit openrouter.ai/models for available models" -Indent 2
         }
         Write-Host ""
 
@@ -178,14 +178,14 @@ function Start-SetupWizard {
         $config.AiModel = Read-Host "  Enter model name"
     }
 
-    Show-Success "  Model: $($config.AiModel)"
+    Show-Success "Model: $($config.AiModel)"
     Write-Host ""
     #endregion
 
     #region Step 5: API Key (Required + Connection Test)
     Show-Step "Step 5/6: API Key"
     Write-Host ""
-    Show-Detail "  Enter your API key (will be saved locally):"
+    Show-Detail "Enter your API key (will be saved locally):"
     Write-Host ""
 
     $connectionSuccess = $false
@@ -193,16 +193,16 @@ function Start-SetupWizard {
         do {
             $apiKey = Read-Host "  API Key"
             if (-not $apiKey) {
-                Show-Error "  API key is required. Please enter a valid key."
+                Show-Error "API key is required. Please enter a valid key."
             }
         } while (-not $apiKey)
 
         $config.AiApiKey = $apiKey
         $maskedKey = $apiKey.Substring(0, [Math]::Min(7, $apiKey.Length)) + "****"
-        Show-Detail "  Key entered: $maskedKey"
+        Show-Detail "Key entered: $maskedKey"
 
         # Test connection
-        Show-Info "  Testing connection..."
+        Show-Info "Testing connection..."
 
         # Temporarily set AI client variables for testing
         $script:AiClient_BaseUrl = $config.AiBaseUrl
@@ -212,11 +212,11 @@ function Start-SetupWizard {
         $testResult = Test-AiConnection
 
         if ($testResult.Success) {
-            Show-Success "  Connection successful!"
+            Show-Success "Connection successful!"
             $connectionSuccess = $true
         } else {
-            Show-Error "  Connection failed: $($testResult.Message)"
-            Show-Warning "  Please check your API key and try again."
+            Show-Error "Connection failed: $($testResult.Message)"
+            Show-Warning "Please check your API key and try again."
             Write-Host ""
         }
     }
@@ -253,7 +253,7 @@ function Start-SetupWizard {
     }
 
     $langDisplay = Get-LanguageDisplayName -LangCode $config.TargetLanguage
-    Show-Success "  Target: $langDisplay ($($config.TargetLanguage))"
+    Show-Success "Target: $langDisplay ($($config.TargetLanguage))"
     Write-Host ""
     #endregion
 

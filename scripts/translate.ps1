@@ -47,9 +47,8 @@ function Invoke-SubtitleTranslator {
         Write-Host ("=" * 60) -ForegroundColor Cyan
         Write-Host "Subtitle Translator" -ForegroundColor Yellow
         Write-Host ("=" * 60) -ForegroundColor Cyan
-        Show-Detail "  Target: $TargetLanguage"
+        Show-Detail "Target: $TargetLanguage"
         Write-Host ("=" * 60) -ForegroundColor Cyan
-        Write-Host ""
     }
 
     # Load subtitle file with auto-generated detection
@@ -155,15 +154,15 @@ function Invoke-AiTranslateFlow {
     }
 
     # Load glossary
-    if (-not $Quiet) { Show-Info "  Loading glossaries..." }
+    if (-not $Quiet) { Show-Info "Loading glossaries..." }
     $glossary = Get-AllGlossaryTerms
-    if (-not $Quiet) { Show-Detail "    Loaded $($glossary.Count) terms" }
+    if (-not $Quiet) { Show-Detail "Loaded $($glossary.Count) terms" -Indent 2 }
 
     # Optionally run AI segmentation for better sentence boundaries
     # (Skip for now as original timing is usually acceptable)
 
     # Translate with AI
-    if (-not $Quiet) { Show-Info "  Translating with AI ($($script:AiClient_Model))..." }
+    if (-not $Quiet) { Show-Info "Translating with AI ($($script:AiClient_Model))..." }
 
     # Convert target language code to full name for AI
     $targetLangName = Get-LanguageDisplayName -LangCode $TargetLanguage
@@ -172,7 +171,7 @@ function Invoke-AiTranslateFlow {
 
     # Run global proofreading
     if (-not $SkipProofread) {
-        if (-not $Quiet) { Show-Info "  Running AI proofreading..." }
+        if (-not $Quiet) { Show-Info "Running AI proofreading..." }
         $bilingualEntries = Invoke-GlobalProofread -BilingualEntries $bilingualEntries -TargetLanguage $targetLangName -Quiet:$Quiet
     }
 

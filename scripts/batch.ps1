@@ -324,11 +324,11 @@ function Invoke-BatchWorkflow {
             # Skip if no subtitle or translation not needed
             if ($item.SkipTranslation -or -not $item.SubtitlePath) {
                 $icon = $script:StatusIcon.Skipped
-                Show-Hint "    $icon [$processCount/$($successfulDownloads.Count)] $displayName (no translation needed)"
+                Show-Hint "$icon [$processCount/$($successfulDownloads.Count)] $displayName (no translation needed)" -Indent 2
                 continue
             }
 
-            Show-Detail "    [$processCount/$($successfulDownloads.Count)] $displayName"
+            Show-Detail "[$processCount/$($successfulDownloads.Count)] $displayName" -Indent 2
 
             try {
                 # Translate
@@ -379,7 +379,7 @@ function Invoke-BatchWorkflow {
             foreach ($item in $failedDownloads) {
                 $displayName = if ($item.VideoId) { $item.VideoId } else { $item.Url }
                 Show-Error "  - $displayName"
-                Show-Hint "    $($item.Error)"
+                Show-Hint "$($item.Error)" -Indent 2
             }
         }
 
@@ -388,7 +388,7 @@ function Invoke-BatchWorkflow {
             Show-Error "Translate/Mux failures:"
             foreach ($item in $translateFailed) {
                 Show-Error "  - $($item.Title)"
-                Show-Hint "    $($item.TranslateError)"
+                Show-Hint "$($item.TranslateError)" -Indent 2
             }
         }
     }
@@ -421,11 +421,11 @@ function Invoke-BatchRetry {
 
         # Check if we have a project directory to resume from
         if ($item.ProjectDir -and (Test-Path -LiteralPath $item.ProjectDir)) {
-            Show-Detail "  Resuming: $displayName"
+            Show-Detail "Resuming: $displayName"
             $retryResult = Resume-Workflow -ProjectDir $item.ProjectDir -Url $item.Url
         }
         else {
-            Show-Detail "  Restarting: $displayName"
+            Show-Detail "Restarting: $displayName"
             # No project dir, start fresh
             try {
                 $project = New-VideoProjectDir -Url $item.Url

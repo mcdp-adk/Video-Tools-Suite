@@ -286,7 +286,6 @@ function Invoke-BatchDownloadMenu {
                 return
             }
 
-            Write-Host ""
             Show-Step "Extracting video URLs from playlist..."
             try {
                 $urls = Get-PlaylistVideoUrls -PlaylistUrl $playlistUrl
@@ -322,7 +321,6 @@ function Invoke-BatchDownloadMenu {
     }
 
     # Preview video titles
-    Write-Host ""
     Show-Step "Fetching video titles..."
     $previews = @()
     foreach ($url in $urls) {
@@ -331,7 +329,6 @@ function Invoke-BatchDownloadMenu {
         Write-Host "  $($previews.Count). $title" -ForegroundColor White
     }
 
-    Write-Host ""
     Show-Info "Ready to process $($urls.Count) videos"
     Write-Host "Press Enter to start or Ctrl+C to cancel..."
     Read-Host
@@ -370,7 +367,7 @@ function Invoke-YouTubeDownloadMenu {
         Write-Host ""
         Write-Host "Creating project..." -ForegroundColor Cyan
         $project = New-VideoProjectDir -Url $url
-        Show-Detail "  Project: $($project.ProjectName)"
+        Show-Detail "Project: $($project.ProjectName)"
 
         Write-Host ""
         $videoPath = Invoke-VideoDownload -Url $url -ProjectDir $project.ProjectDir
@@ -378,11 +375,11 @@ function Invoke-YouTubeDownloadMenu {
 
         Write-Host ""
         Show-Success "Download complete!"
-        Show-Detail "  Project folder: $($project.ProjectDir)"
+        Show-Detail "Project folder: $($project.ProjectDir)"
         if ($videoPath) {
-            Show-Detail "  Video: $(Split-Path -Leaf $videoPath)"
+            Show-Detail "Video: $(Split-Path -Leaf $videoPath)"
         }
-        Show-Detail "  Subtitles: $subCount files"
+        Show-Detail "Subtitles: $subCount files"
     }
     catch {
         Show-Error $_.Exception.Message
@@ -409,7 +406,7 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Write-Host ""
         Write-Host "Creating project..." -ForegroundColor Cyan
         $project = New-VideoProjectDir -Url $url
-        Show-Detail "  Project: $($project.ProjectName)"
+        Show-Detail "Project: $($project.ProjectName)"
 
         Write-Host ""
         $subResult = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
@@ -417,9 +414,9 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Write-Host ""
         if ($subResult.SubtitleFile) {
             Show-Success "Subtitle downloaded!"
-            Show-Detail "  File: $(Split-Path -Leaf $subResult.SubtitleFile)"
-            Show-Detail "  Type: $($subResult.SubtitleType)"
-            Show-Detail "  Language: $($subResult.VideoLanguage)"
+            Show-Detail "File: $(Split-Path -Leaf $subResult.SubtitleFile)"
+            Show-Detail "Type: $($subResult.SubtitleType)"
+            Show-Detail "Language: $($subResult.VideoLanguage)"
         } elseif ($subResult.SubtitleType -eq "embedded") {
             Show-Success "Target language subtitle already embedded in video"
         } else {
@@ -484,14 +481,13 @@ function Invoke-TranslateMenu {
             return
         }
 
-        Write-Host ""
         Show-Step "Translating..."
         $result = Invoke-SubtitleTranslator -InputPath $file -Quiet
 
         Write-Host ""
         Show-Success "Translation complete!"
-        Show-Detail "  Output: $($result.OutputPath)"
-        Show-Detail "  Entries: $($result.EntryCount)"
+        Show-Detail "Output: $($result.OutputPath)"
+        Show-Detail "Entries: $($result.EntryCount)"
     }
     catch {
         Show-Error $_.Exception.Message

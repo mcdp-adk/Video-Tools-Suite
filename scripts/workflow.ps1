@@ -122,7 +122,6 @@ function Resume-Workflow {
         return @{ Success = $true; Skipped = $true }
     }
 
-    Write-Host ""
     Show-Info "Resuming from stage: $($status.NextStage)"
 
     # Determine skip flags based on status
@@ -197,11 +196,11 @@ function Invoke-FullWorkflow {
         $project = New-VideoProjectDir -Url $InputUrl
         $projectDir = $project.ProjectDir
 
-        Show-Detail "  Video ID: $($project.VideoId)"
-        Show-Detail "  Title: $($project.VideoTitle)"
+        Show-Detail "Video ID: $($project.VideoId)"
+        Show-Detail "Title: $($project.VideoTitle)"
 
         # Download video using shared function
-        Show-Detail "  Downloading video..."
+        Show-Detail "Downloading video..."
         $videoPath = Invoke-VideoDownload -Url $InputUrl -ProjectDir $projectDir -Quiet
         if ($videoPath) {
             Show-Success "  Video: $(Split-Path -Leaf $videoPath)"
@@ -246,7 +245,7 @@ function Invoke-FullWorkflow {
         if ($subtitleFiles.Count -gt 0) {
             $manualSub = $subtitleFiles | Where-Object { $_.Name -notmatch '\.auto\.' } | Select-Object -First 1
             $subtitlePath = if ($manualSub) { $manualSub.FullName } else { $subtitleFiles[0].FullName }
-            Show-Detail "  Using existing subtitle: $(Split-Path -Leaf $subtitlePath)"
+            Show-Detail "Using existing subtitle: $(Split-Path -Leaf $subtitlePath)"
         }
     }
 
@@ -254,7 +253,6 @@ function Invoke-FullWorkflow {
 
     #region Step 1.5: Generate Transcript (Optional)
     if ($GenerateTranscript -and $subtitlePath) {
-        Write-Host ""
         Show-Step "[Step 1.5/3] Generating transcript..."
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
@@ -268,20 +266,19 @@ function Invoke-FullWorkflow {
 
     if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
         Set-VtsWindowTitle -Phase Translate -Status "Translating..."
-        Write-Host ""
         Show-Step "[Step 2/3] Translating subtitles..."
 
         # Check language
         $subtitleData = Import-SubtitleFile -Path $subtitlePath
         $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
-        Show-Detail "  Source: $($langCheck.DetectedLanguage)"
+        Show-Detail "Source: $($langCheck.DetectedLanguage)"
 
         $bilingualAssPath = Join-Path $projectDir "bilingual.ass"
 
         $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -Quiet
 
         Show-Success "  Output: bilingual.ass"
-        Show-Detail "  Entries: $($translateResult.EntryCount)"
+        Show-Detail "Entries: $($translateResult.EntryCount)"
     }
     elseif ($skipTranslation) {
         Write-Host ""
@@ -303,7 +300,6 @@ function Invoke-FullWorkflow {
     #region Step 3: Mux
     if (-not $SkipMux -and $videoPath -and $bilingualAssPath) {
         Set-VtsWindowTitle -Phase Mux -Status "Muxing..."
-        Write-Host ""
         Show-Step "[Step 3/3] Muxing subtitle into video..."
 
         # Output MKV to parent directory
@@ -334,15 +330,15 @@ function Invoke-FullWorkflow {
 
         Write-Host ""
         Show-Success "Workflow completed!"
-        Show-Detail "  Project: $projectDir"
-        Show-Detail "  Output: $outputMkvPath"
+        Show-Detail "Project: $projectDir"
+        Show-Detail "Output: $outputMkvPath"
     }
     elseif ($skipTranslation -and $videoPath) {
         Write-Host ""
         Show-Hint "[Step 3/3] Skipping mux (no translation needed)"
         Write-Host ""
         Show-Success "Workflow completed!"
-        Show-Detail "  Note: Video already has target language subtitles embedded"
+        Show-Detail "Note: Video already has target language subtitles embedded"
     }
     else {
         Write-Host ""
@@ -383,8 +379,8 @@ if ($MyInvocation.InvocationName -ne '.') {
         Show-Hint "Runs complete workflow: download -> translate -> mux"
         Write-Host ""
         Show-Hint "Examples:"
-        Show-Hint "  workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        Show-Hint "  workflow.bat https://www.bilibili.com/video/BV1xx411c7XW"
+        Show-Hint "workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -Indent 1
+        Show-Hint "workflow.bat https://www.bilibili.com/video/BV1xx411c7XW" -Indent 1
         exit 1
     }
 }
