@@ -94,6 +94,75 @@ function Get-CookieArgs {
     return @()
 }
 
+# Get video subtitle information using yt-dlp --dump-json
+# Returns: VideoLanguage, ManualSubtitles, AutoSubtitles, HasTargetLanguageSub
+function Get-VideoSubtitleInfo {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Url,
+        [string]$TargetLanguage = ""
+    )
+
+    $cookieArgs = Get-CookieArgs
+    $commonArgs = Get-CommonYtDlpArgs
+
+    # Get video metadata as JSON
+    $jsonArgs = $commonArgs + $cookieArgs + @("--dump-json", "--skip-download", $Url)
+    $jsonOutput = & yt-dlp @jsonArgs 2>$null
+
+    if ($LASTEXITCODE -ne 0 -or -not $jsonOutput) {
+        return @{ Success = $false; Error = "Failed to get video metadata" }
+    }
+
+    try {
+        $metadata = $jsonOutput | ConvertFrom-Json
+    } catch {
+        return @{ Success = $false; Error = "Failed to parse video metadata" }
+    }
+
+    # Extract subtitle language codes
+    $manualSubs = @()
+    $autoSubs = @()
+    $videoLanguage = $null
+
+    if ($metadata.subtitles) {
+        $manualSubs = @($metadata.subtitles.PSObject.Properties.Name)
+    }
+
+    if ($metadata.automatic_captions) {
+        $autoSubs = @($metadata.automatic_captions.PSObject.Properties.Name)
+        # Detect video language from *-orig suffix
+        $origLang = $autoSubs | Where-Object { $_ -match '-orig$' } | Select-Object -First 1
+        if ($origLang) {
+            $videoLanguage = $origLang -replace '-orig$', ''
+        }
+    }
+
+    # Fallback: use metadata.language field if no *-orig found
+    if (-not $videoLanguage -and $metadata.language) {
+        $videoLanguage = $metadata.language
+    }
+
+    # Check if target language subtitle exists
+    $hasTargetLanguageSub = $false
+    if ($TargetLanguage) {
+        $targetBase = $TargetLanguage -replace '-Hans$', '' -replace '-Hant$', ''
+        $hasTargetLanguageSub = [bool]($manualSubs | Where-Object {
+            $_ -eq $TargetLanguage -or $_ -eq $targetBase -or $_ -match "^$targetBase"
+        })
+    }
+
+    return @{
+        Success = $true
+        VideoLanguage = $videoLanguage
+        ManualSubtitles = $manualSubs
+        AutoSubtitles = $autoSubs
+        HasTargetLanguageSub = $hasTargetLanguageSub
+        Title = $metadata.title
+        Duration = $metadata.duration
+    }
+}
+
 # Format filename to match yt-dlp --restrict-filenames behavior
 function Format-RestrictedFilename {
     param([string]$Text)
@@ -241,13 +310,16 @@ function Invoke-VideoDownload {
     return $null
 }
 
-# Download subtitles to project folder (core function used by workflow and menus)
+# Download subtitles to project folder with smart selection
+# Priority: 1. Target lang manual sub (skip) → 2. Video lang manual sub → 3. Video lang auto sub (*-orig)
+# Returns: @{ SubtitleFile, VideoLanguage, SubtitleType, SkipTranslation }
 function Invoke-SubtitleDownload {
     param(
         [Parameter(Mandatory=$true)]
         [string]$Url,
         [Parameter(Mandatory=$true)]
         [string]$ProjectDir,
+        [string]$TargetLanguage = "",
         [switch]$Quiet
     )
 
@@ -257,36 +329,113 @@ function Invoke-SubtitleDownload {
     $cookieArgs = Get-CookieArgs
     $commonArgs = Get-CommonYtDlpArgs
 
+    # Get subtitle info
     if (-not $Quiet) {
-        Write-Host "Downloading subtitles..." -ForegroundColor Cyan
+        Write-Host "  Analyzing subtitles..." -ForegroundColor Cyan
     }
 
-    # Manual subtitles
-    $manualSubArgs = $cookieArgs + $commonArgs + @(
-        "--write-subs",
-        "--sub-langs", "en,zh,ja",
-        "--skip-download",
-        "-o", "$ProjectDir\original.%(ext)s",
-        $url
-    )
-    & yt-dlp $manualSubArgs 2>&1 | Out-Null
+    $subInfo = Get-VideoSubtitleInfo -Url $Url -TargetLanguage $TargetLanguage
+    if (-not $subInfo.Success) {
+        if (-not $Quiet) {
+            Write-Host "    Warning: $($subInfo.Error)" -ForegroundColor Yellow
+        }
+        return @{
+            SubtitleFile = $null
+            VideoLanguage = $null
+            SubtitleType = "none"
+            SkipTranslation = $true
+        }
+    }
 
-    # Auto-generated subtitles
-    $autoSubArgs = $cookieArgs + $commonArgs + @(
-        "--write-auto-subs",
-        "--sub-langs", "en,zh,ja",
-        "--skip-download",
-        "-o", "$ProjectDir\original.auto.%(ext)s",
-        $url
-    )
-    & yt-dlp $autoSubArgs 2>&1 | Out-Null
+    $videoLang = $subInfo.VideoLanguage
 
-    # Count downloaded files
-    $subFiles = @()
-    $subFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.vtt" -ErrorAction SilentlyContinue
-    $subFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.srt" -ErrorAction SilentlyContinue
+    if (-not $Quiet) {
+        Write-Host "    Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })" -ForegroundColor Gray
+    }
 
-    return $subFiles.Count
+    # Priority 1: Check if target language manual subtitle exists
+    if ($TargetLanguage -and $subInfo.HasTargetLanguageSub) {
+        if (-not $Quiet) {
+            Write-Host "    Found target language ($TargetLanguage) manual subtitle - already embedded in video" -ForegroundColor Green
+        }
+        return @{
+            SubtitleFile = $null
+            VideoLanguage = $videoLang
+            SubtitleType = "embedded"
+            SkipTranslation = $true
+        }
+    }
+
+    # Priority 2: Video language manual subtitle
+    if ($videoLang -and ($subInfo.ManualSubtitles -contains $videoLang)) {
+        if (-not $Quiet) {
+            Write-Host "    Downloading manual subtitle ($videoLang)..." -ForegroundColor Cyan
+        }
+
+        $subArgs = $cookieArgs + $commonArgs + @(
+            "--write-subs",
+            "--sub-langs", $videoLang,
+            "--skip-download",
+            "-o", "$ProjectDir\original.%(ext)s",
+            $url
+        )
+        & yt-dlp @subArgs 2>&1 | Out-Null
+
+        $subFile = Get-ChildItem -LiteralPath $ProjectDir -Filter "original.$videoLang.*" |
+            Where-Object { $_.Extension -match '\.(vtt|srt)$' } |
+            Select-Object -First 1
+
+        if ($subFile) {
+            return @{
+                SubtitleFile = $subFile.FullName
+                VideoLanguage = $videoLang
+                SubtitleType = "manual"
+                SkipTranslation = $false
+            }
+        }
+    }
+
+    # Priority 3: Video language auto subtitle (*-orig)
+    $origKey = "$videoLang-orig"
+    if ($videoLang -and ($subInfo.AutoSubtitles -contains $origKey)) {
+        if (-not $Quiet) {
+            Write-Host "    Downloading auto-generated subtitle ($origKey)..." -ForegroundColor Cyan
+        }
+
+        $subArgs = $cookieArgs + $commonArgs + @(
+            "--write-auto-subs",
+            "--sub-langs", $origKey,
+            "--skip-download",
+            "-o", "$ProjectDir\original.auto.%(ext)s",
+            $url
+        )
+        & yt-dlp @subArgs 2>&1 | Out-Null
+
+        $subFile = Get-ChildItem -LiteralPath $ProjectDir -Filter "original.auto.$origKey.*" |
+            Where-Object { $_.Extension -match '\.(vtt|srt)$' } |
+            Select-Object -First 1
+
+        if ($subFile) {
+            return @{
+                SubtitleFile = $subFile.FullName
+                VideoLanguage = $videoLang
+                SubtitleType = "auto"
+                SkipTranslation = $false
+            }
+        }
+    }
+
+    # No suitable subtitle found
+    if (-not $Quiet) {
+        Write-Host "    Warning: No suitable subtitle found for this video" -ForegroundColor Yellow
+    }
+
+    return @{
+        SubtitleFile = $null
+        VideoLanguage = $videoLang
+        SubtitleType = "none"
+        SkipTranslation = $true
+    }
 }
 
 #endregion
@@ -314,10 +463,12 @@ if ($MyInvocation.InvocationName -ne '.') {
                 Write-Host "Video downloaded: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
             }
 
-            # Download subtitles
-            $subCount = Invoke-SubtitleDownload -Url $cliUrl -ProjectDir $project.ProjectDir
-            if ($subCount -gt 0) {
-                Write-Host "Subtitles downloaded: $subCount files" -ForegroundColor Green
+            # Download subtitles (smart selection)
+            $subResult = Invoke-SubtitleDownload -Url $cliUrl -ProjectDir $project.ProjectDir
+            if ($subResult.SubtitleFile) {
+                Write-Host "Subtitle downloaded: $(Split-Path -Leaf $subResult.SubtitleFile) ($($subResult.SubtitleType))" -ForegroundColor Green
+            } elseif ($subResult.SubtitleType -eq "embedded") {
+                Write-Host "Subtitles: Target language already embedded in video" -ForegroundColor Green
             } else {
                 Write-Host "No subtitles available" -ForegroundColor Yellow
             }

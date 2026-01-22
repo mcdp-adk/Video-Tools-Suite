@@ -1,8 +1,11 @@
 # Full workflow module
-# Handles complete pipeline: download -> select subtitle -> translate -> mux
+# Handles complete pipeline: download -> translate -> mux
 
 # Dot source dependencies if not already loaded
-if (-not (Get-Command "Invoke-YouTubeDownloader" -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\lang-config.ps1"
+}
+if (-not (Get-Command "Invoke-VideoDownload" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\download.ps1"
 }
 if (-not (Get-Command "Import-SubtitleFile" -ErrorAction SilentlyContinue)) {
@@ -18,54 +21,9 @@ if (-not (Get-Command "Invoke-TranscriptGenerator" -ErrorAction SilentlyContinue
     . "$PSScriptRoot\transcript.ps1"
 }
 
-# Configuration
+# Configuration (set by vts.ps1 from config.json)
 $script:WorkflowOutputDir = "$PSScriptRoot\..\output"
-
-#region Subtitle Selection
-
-# Find and select the best subtitle file from a project directory
-function Select-BestSubtitle {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$ProjectDir,
-        [string]$PreferredLanguage = "en"
-    )
-
-    # Get all subtitle files (use -LiteralPath to handle brackets in path)
-    $subtitleFiles = @()
-    $subtitleFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.vtt" -ErrorAction SilentlyContinue
-    $subtitleFiles += Get-ChildItem -LiteralPath $ProjectDir -Filter "*.srt" -ErrorAction SilentlyContinue
-
-    if ($subtitleFiles.Count -eq 0) {
-        return $null
-    }
-
-    # Categorize subtitles
-    $manualSubs = $subtitleFiles | Where-Object { $_.Name -notmatch '\.auto' -and $_.Name -notmatch 'auto-generated' }
-    $autoSubs = $subtitleFiles | Where-Object { $_.Name -match '\.auto' -or $_.Name -match 'auto-generated' }
-
-    # Prefer manual subtitles
-    $candidates = if ($manualSubs.Count -gt 0) { $manualSubs } else { $autoSubs }
-
-    # Try to find preferred language
-    foreach ($sub in $candidates) {
-        if ($sub.Name -match "\.$PreferredLanguage\." -or $sub.Name -match "\.($PreferredLanguage)-") {
-            return $sub.FullName
-        }
-    }
-
-    # Try common English patterns
-    foreach ($sub in $candidates) {
-        if ($sub.Name -match '\.en\.' -or $sub.Name -match '\.en-' -or $sub.Name -match '\.eng\.') {
-            return $sub.FullName
-        }
-    }
-
-    # Return first available
-    return $candidates[0].FullName
-}
-
-#endregion
+$script:TargetLanguage = $script:DefaultTargetLanguage
 
 #region Full Workflow
 
@@ -101,11 +59,12 @@ function Invoke-FullWorkflow {
     $projectDir = $ExistingProjectDir
     $videoPath = ""
     $subtitlePath = ""
+    $skipTranslation = $false
 
     #region Step 1: Download
     if (-not $SkipDownload -and -not $ExistingProjectDir) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 1/4 - Downloading..."
-        Write-Host "[Step 1/4] Downloading video and subtitles..." -ForegroundColor Yellow
+        $Host.UI.RawUI.WindowTitle = "VTS: Step 1/3 - Downloading..."
+        Write-Host "[Step 1/3] Downloading video and subtitles..." -ForegroundColor Yellow
 
         # Create project directory using shared function from download.ps1
         $project = New-VideoProjectDir -Url $InputUrl
@@ -121,57 +80,54 @@ function Invoke-FullWorkflow {
             Write-Host "  Video: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
         }
 
-        # Download subtitles using shared function
-        Write-Host "  Downloading subtitles..." -ForegroundColor Gray
-        $subCount = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $projectDir -Quiet
-        if ($subCount -gt 0) {
-            Write-Host "  Subtitles: $subCount files" -ForegroundColor Green
+        # Download subtitles using smart selection
+        $subResult = Invoke-SubtitleDownload -Url $InputUrl -ProjectDir $projectDir -TargetLanguage $script:TargetLanguage
+
+        if ($subResult.SkipTranslation) {
+            if ($subResult.SubtitleType -eq "embedded") {
+                Write-Host "  Subtitles: Target language already available (skipping translation)" -ForegroundColor Green
+                $skipTranslation = $true
+            } else {
+                Write-Host "  Subtitles: None available" -ForegroundColor Yellow
+                $skipTranslation = $true
+            }
         } else {
-            Write-Host "  No subtitles available" -ForegroundColor Yellow
+            Write-Host "  Subtitles: $($subResult.SubtitleType) ($($subResult.VideoLanguage))" -ForegroundColor Green
+            $subtitlePath = $subResult.SubtitleFile
         }
     }
     else {
-        Write-Host "[Step 1/4] Skipping download (using existing files)" -ForegroundColor DarkGray
+        Write-Host "[Step 1/3] Skipping download (using existing files)" -ForegroundColor DarkGray
 
         if ($ExistingProjectDir) {
             $projectDir = $ExistingProjectDir
         }
 
         # Find existing video
-        $videoFile = Get-ChildItem -Path $projectDir -Filter "video.*" -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '\.(mp4|mkv|webm|mov|avi)$' } | Select-Object -First 1
+        $videoFile = Get-ChildItem -LiteralPath $projectDir -Filter "video.*" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -match '\.(mp4|mkv|webm|mov|avi)$' } |
+            Select-Object -First 1
         if ($videoFile) {
             $videoPath = $videoFile.FullName
+        }
+
+        # Find existing subtitle (prefer manual over auto)
+        $subtitleFiles = @(Get-ChildItem -LiteralPath $projectDir -Filter "*.vtt" -ErrorAction SilentlyContinue) +
+                         @(Get-ChildItem -LiteralPath $projectDir -Filter "*.srt" -ErrorAction SilentlyContinue)
+
+        if ($subtitleFiles.Count -gt 0) {
+            $manualSub = $subtitleFiles | Where-Object { $_.Name -notmatch '\.auto\.' } | Select-Object -First 1
+            $subtitlePath = if ($manualSub) { $manualSub.FullName } else { $subtitleFiles[0].FullName }
+            Write-Host "  Using existing subtitle: $(Split-Path -Leaf $subtitlePath)" -ForegroundColor Gray
         }
     }
 
     #endregion
 
-    #region Step 2: Select Subtitle
-    $Host.UI.RawUI.WindowTitle = "VTS: Step 2/4 - Selecting subtitle..."
-    Write-Host ""
-    Write-Host "[Step 2/4] Selecting subtitle..." -ForegroundColor Yellow
-
-    $subtitlePath = Select-BestSubtitle -ProjectDir $projectDir -PreferredLanguage "en"
-
-    if (-not $subtitlePath) {
-        Write-Host "  No subtitle files found" -ForegroundColor Red
-        throw "No subtitle files found in project directory"
-    }
-
-    $subtitleFile = Get-Item -LiteralPath $subtitlePath
-    Write-Host "  Selected: $($subtitleFile.Name)" -ForegroundColor Green
-
-    # Check language
-    $subtitleData = Import-SubtitleFile -Path $subtitlePath
-    $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
-    Write-Host "  Language: $($langCheck.DetectedLanguage)" -ForegroundColor Gray
-
-    #endregion
-
-    #region Step 2.5: Generate Transcript (Optional)
-    if ($GenerateTranscript) {
+    #region Step 1.5: Generate Transcript (Optional)
+    if ($GenerateTranscript -and $subtitlePath) {
         Write-Host ""
-        Write-Host "[Step 2.5/4] Generating transcript..." -ForegroundColor Yellow
+        Write-Host "[Step 1.5/3] Generating transcript..." -ForegroundColor Yellow
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
         Invoke-TranscriptGenerator -InputPath $subtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
@@ -179,13 +135,18 @@ function Invoke-FullWorkflow {
     }
     #endregion
 
-    #region Step 3: Translate
+    #region Step 2: Translate
     $bilingualAssPath = ""
 
-    if (-not $SkipTranslate) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 3/4 - Translating..."
+    if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
+        $Host.UI.RawUI.WindowTitle = "VTS: Step 2/3 - Translating..."
         Write-Host ""
-        Write-Host "[Step 3/4] Translating subtitles..." -ForegroundColor Yellow
+        Write-Host "[Step 2/3] Translating subtitles..." -ForegroundColor Yellow
+
+        # Check language
+        $subtitleData = Import-SubtitleFile -Path $subtitlePath
+        $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
+        Write-Host "  Source: $($langCheck.DetectedLanguage)" -ForegroundColor Gray
 
         $bilingualAssPath = Join-Path $projectDir "bilingual.ass"
 
@@ -194,9 +155,13 @@ function Invoke-FullWorkflow {
         Write-Host "  Output: bilingual.ass" -ForegroundColor Green
         Write-Host "  Entries: $($translateResult.EntryCount)" -ForegroundColor Gray
     }
+    elseif ($skipTranslation) {
+        Write-Host ""
+        Write-Host "[Step 2/3] Skipping translation (target language subtitle available)" -ForegroundColor DarkGray
+    }
     else {
         Write-Host ""
-        Write-Host "[Step 3/4] Skipping translation" -ForegroundColor DarkGray
+        Write-Host "[Step 2/3] Skipping translation" -ForegroundColor DarkGray
 
         # Look for existing bilingual subtitle
         $existingAss = Join-Path $projectDir "bilingual.ass"
@@ -207,11 +172,11 @@ function Invoke-FullWorkflow {
 
     #endregion
 
-    #region Step 4: Mux
+    #region Step 3: Mux
     if (-not $SkipMux -and $videoPath -and $bilingualAssPath) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 4/4 - Muxing..."
+        $Host.UI.RawUI.WindowTitle = "VTS: Step 3/3 - Muxing..."
         Write-Host ""
-        Write-Host "[Step 4/4] Muxing subtitle into video..." -ForegroundColor Yellow
+        Write-Host "[Step 3/3] Muxing subtitle into video..." -ForegroundColor Yellow
 
         # Output MKV to parent directory
         $videoId = Split-Path -Leaf $projectDir
@@ -244,9 +209,16 @@ function Invoke-FullWorkflow {
         Write-Host "  Project: $projectDir" -ForegroundColor Gray
         Write-Host "  Output: $outputMkvPath" -ForegroundColor Gray
     }
+    elseif ($skipTranslation -and $videoPath) {
+        Write-Host ""
+        Write-Host "[Step 3/3] Skipping mux (no translation needed)" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "[SUCCESS] Workflow completed!" -ForegroundColor Green
+        Write-Host "  Note: Video already has target language subtitles embedded" -ForegroundColor Gray
+    }
     else {
         Write-Host ""
-        Write-Host "[Step 4/4] Skipping mux" -ForegroundColor DarkGray
+        Write-Host "[Step 3/3] Skipping mux" -ForegroundColor DarkGray
     }
 
     #endregion
@@ -259,6 +231,7 @@ function Invoke-FullWorkflow {
         VideoPath = $videoPath
         SubtitlePath = $subtitlePath
         BilingualAssPath = $bilingualAssPath
+        SkippedTranslation = $skipTranslation
     }
 }
 

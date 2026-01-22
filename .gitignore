@@ -17,3 +17,6 @@ Desktop.ini
 
 # macOS
 .DS_Store
+
+# Claude Code
+docs/

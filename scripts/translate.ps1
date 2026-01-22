@@ -11,9 +11,12 @@ if (-not (Get-Command "Invoke-AiCompletion" -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command "Get-AllGlossaryTerms" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\glossary.ps1"
 }
+if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\lang-config.ps1"
+}
 
 # Configuration (set by vts.ps1 from config.json)
-$script:TargetLanguage = "zh-CN"
+$script:TargetLanguage = $script:DefaultTargetLanguage
 $script:TranslateOutputDir = "$PSScriptRoot\..\output"
 
 #region Main Translation Function
@@ -78,13 +81,14 @@ function Invoke-SubtitleTranslator {
     $langCheck = Test-SubtitleLanguage -Entries $entries -ExpectedLanguage "en"
     if (-not $Quiet) { Write-Host "Detected language: $($langCheck.DetectedLanguage) (confidence: $($langCheck.Confidence))" -ForegroundColor Gray }
 
-    if ($langCheck.DetectedLanguage -eq $TargetLanguage -or
-        ($TargetLanguage -match 'zh' -and $langCheck.DetectedLanguage -eq 'zh')) {
-        if (-not $Quiet) { Write-Host "Warning: Source language appears to be the same as target language" -ForegroundColor Yellow }
+    $isSameLanguage = ($langCheck.DetectedLanguage -eq $TargetLanguage) -or
+                      ($TargetLanguage -match 'zh' -and $langCheck.DetectedLanguage -eq 'zh')
+    if ($isSameLanguage -and -not $Quiet) {
+        Write-Host "Warning: Source language appears to be the same as target language" -ForegroundColor Yellow
     }
 
     # Translate using AI
-    $bilingualEntries = Invoke-AiTranslateFlow -Entries $entries -TargetLanguage $TargetLanguage -SkipProofread:$SkipProofread
+    $bilingualEntries = Invoke-AiTranslateFlow -Entries $entries -TargetLanguage $TargetLanguage -SkipProofread:$SkipProofread -Quiet:$Quiet
 
     # Apply text formatting to translations (Chinese spacing/punctuation)
     if ($TargetLanguage -match 'zh') {
@@ -138,7 +142,8 @@ function Invoke-AiTranslateFlow {
         [Parameter(Mandatory=$true)]
         [array]$Entries,
         [string]$TargetLanguage = "Chinese (Simplified)",
-        [switch]$SkipProofread
+        [switch]$SkipProofread,
+        [switch]$Quiet
     )
 
     # Check AI configuration
@@ -147,30 +152,24 @@ function Invoke-AiTranslateFlow {
     }
 
     # Load glossary
-    Write-Host "Loading glossaries..." -ForegroundColor Cyan
+    if (-not $Quiet) { Write-Host "  Loading glossaries..." -ForegroundColor Cyan }
     $glossary = Get-AllGlossaryTerms
-    Write-Host "  Loaded $($glossary.Count) terms" -ForegroundColor Gray
+    if (-not $Quiet) { Write-Host "    Loaded $($glossary.Count) terms" -ForegroundColor Gray }
 
     # Optionally run AI segmentation for better sentence boundaries
     # (Skip for now as original timing is usually acceptable)
 
     # Translate with AI
-    Write-Host "Translating with AI ($($script:AiClient_Model))..." -ForegroundColor Cyan
+    if (-not $Quiet) { Write-Host "  Translating with AI ($($script:AiClient_Model))..." -ForegroundColor Cyan }
 
     # Convert target language code to full name for AI
-    $targetLangName = switch ($TargetLanguage) {
-        'zh-CN' { 'Chinese (Simplified)' }
-        'zh-TW' { 'Chinese (Traditional)' }
-        'ja' { 'Japanese' }
-        'ko' { 'Korean' }
-        default { $TargetLanguage }
-    }
+    $targetLangName = Get-LanguageDisplayName -LangCode $TargetLanguage
 
     $bilingualEntries = Invoke-SubtitleTranslate -Entries $Entries -TargetLanguage $targetLangName -Glossary $glossary
 
     # Run global proofreading
     if (-not $SkipProofread) {
-        Write-Host "Running AI proofreading..." -ForegroundColor Cyan
+        if (-not $Quiet) { Write-Host "  Running AI proofreading..." -ForegroundColor Cyan }
         $bilingualEntries = Invoke-GlobalProofread -BilingualEntries $bilingualEntries -TargetLanguage $targetLangName
     }
 

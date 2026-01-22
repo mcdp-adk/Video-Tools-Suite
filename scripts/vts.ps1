@@ -6,6 +6,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Dot source all scripts
 . "$PSScriptRoot\utils.ps1"
+. "$PSScriptRoot\lang-config.ps1"
 . "$PSScriptRoot\subtitle-utils.ps1"
 . "$PSScriptRoot\ai-client.ps1"
 . "$PSScriptRoot\glossary.ps1"
@@ -32,7 +33,7 @@ $script:Config = @{
     AiBaseUrl = "https://api.openai.com/v1"
     AiApiKey = ""
     AiModel = "gpt-4o-mini"
-    TargetLanguage = "zh-CN"
+    TargetLanguage = $script:DefaultTargetLanguage
     GenerateTranscriptInWorkflow = $false
 }
 
@@ -55,6 +56,10 @@ function Import-Config {
 
             # Backward compatibility: map old config keys
             if ($fileConfig.DownloadDir) { $script:Config.OutputDir = $fileConfig.DownloadDir }
+
+            # Backward compatibility: map old language codes
+            if ($script:Config.TargetLanguage -eq 'zh-CN') { $script:Config.TargetLanguage = 'zh-Hans' }
+            if ($script:Config.TargetLanguage -eq 'zh-TW') { $script:Config.TargetLanguage = 'zh-Hant' }
         } catch {
             # Ignore errors, use defaults
         }
@@ -212,6 +217,7 @@ function Invoke-FullWorkflowMenu {
             return
         }
 
+        Write-Host ""
         $result = Invoke-FullWorkflow -InputUrl $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
     }
     catch {
@@ -575,15 +581,30 @@ function Invoke-SettingsMenu {
             }
             '5' {
                 Write-Host ""
-                Write-Host "Common options: zh-CN, zh-TW, ja, ko, en" -ForegroundColor Gray
-                $newLang = Read-Host "Enter target language code"
-                if ($newLang) {
-                    $script:Config.TargetLanguage = $newLang
-                    Apply-ConfigToModules
-                    Export-Config
-                    Write-Host "Target language updated" -ForegroundColor Green
-                    Start-Sleep -Seconds 1
+                Write-Host "  [1] Chinese Simplified (zh-Hans)" -ForegroundColor White
+                Write-Host "  [2] Chinese Traditional (zh-Hant)" -ForegroundColor White
+                Write-Host "  [3] Japanese (ja)" -ForegroundColor White
+                Write-Host "  [4] Korean (ko)" -ForegroundColor White
+                Write-Host "  [5] English (en)" -ForegroundColor White
+                Write-Host "  [6] Custom" -ForegroundColor White
+                $langChoice = Read-Host "Select language"
+                switch ($langChoice) {
+                    '1' { $script:Config.TargetLanguage = 'zh-Hans' }
+                    '2' { $script:Config.TargetLanguage = 'zh-Hant' }
+                    '3' { $script:Config.TargetLanguage = 'ja' }
+                    '4' { $script:Config.TargetLanguage = 'ko' }
+                    '5' { $script:Config.TargetLanguage = 'en' }
+                    '6' {
+                        $customLang = Read-Host "Enter language code"
+                        if ($customLang) {
+                            $script:Config.TargetLanguage = $customLang
+                        }
+                    }
                 }
+                Apply-ConfigToModules
+                Export-Config
+                Write-Host "Target language updated" -ForegroundColor Green
+                Start-Sleep -Seconds 1
             }
             '6' {
                 $newPath = Read-UserInput -Prompt "Enter cookie file path"

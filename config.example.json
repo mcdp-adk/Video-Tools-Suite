@@ -6,6 +6,6 @@
   "AiBaseUrl": "https://api.openai.com/v1",
   "AiApiKey": "",
   "AiModel": "gpt-4o-mini",
-  "TargetLanguage": "zh-CN",
+  "TargetLanguage": "zh-Hans",
   "GenerateTranscriptInWorkflow": false
 }

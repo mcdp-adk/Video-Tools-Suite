@@ -138,8 +138,8 @@ function Invoke-SubtitleMuxer {
     # Get existing subtitle streams
     $existingSubtitles = @(Get-ExistingSubtitleStreams -VideoPath $VideoPath)
 
-    if ($existingSubtitles.Count -gt 0) {
-        Write-Host "Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..." -ForegroundColor Gray
+    if ($existingSubtitles.Count -gt 0 -and -not $Quiet) {
+        Write-Host "  Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..." -ForegroundColor Gray
     }
 
     # Build and execute ffmpeg command
