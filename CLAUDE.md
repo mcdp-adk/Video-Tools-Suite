@@ -154,10 +154,10 @@ New-ProgressBar -Current 5 -Total 10  # 返回 "[████████░░�
 
 **消息格式**（使用 utils.ps1 中的函数）：
 ```powershell
-Show-Success "Operation completed"    # [SUCCESS] ... (Green)
-Show-Error "Something failed"         # [ERROR] ... (Red)
-Show-Warning "Check this"             # [WARNING] ... (Yellow)
-Show-Info "Processing..."             # [INFO] ... (Cyan)
+Show-Success "Operation completed"    # Green text
+Show-Error "Something failed"         # Red text
+Show-Warning "Check this"             # Yellow text
+Show-Info "Processing..."             # Cyan text (auto blank line before)
 ```
 
 **颜色规范**：

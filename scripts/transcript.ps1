@@ -119,7 +119,7 @@ function Invoke-TranscriptGenerator {
             }
 
             # Use cue-based segmentation
-            $segments = Invoke-CueBasedSegmentation -Cues $subtitleData.Cues -Words $subtitleData.Words
+            $segments = Invoke-CueBasedSegmentation -Cues $subtitleData.Cues -Words $subtitleData.Words -Quiet:$Quiet
 
             # Convert segments to entries format
             $entries = $segments | ForEach-Object {

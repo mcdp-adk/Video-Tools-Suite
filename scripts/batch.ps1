@@ -369,9 +369,9 @@ function Invoke-BatchWorkflow {
 
     Write-Host ""
     if ($failedDownloads.Count -eq 0 -and $translateFailed.Count -eq 0) {
-        Show-Success "[SUCCESS] Batch complete: $totalSuccess / $total"
+        Show-Success "Batch complete: $totalSuccess / $total"
     } else {
-        Show-Warning "[COMPLETE] Success: $totalSuccess / $total"
+        Show-Warning "Batch complete: $totalSuccess / $total"
 
         if ($failedDownloads.Count -gt 0) {
             Write-Host ""
