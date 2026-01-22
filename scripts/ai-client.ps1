@@ -1,6 +1,11 @@
 # AI Client module for OpenAI-compatible API calls
 # Supports subtitle segmentation, translation, and proofreading
 
+# Dot source dependencies if not already loaded
+if (-not (Get-Command "Show-Warning" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 # Configuration (set by vts.ps1 from config.json)
 $script:AiClient_BaseUrl = "https://api.openai.com/v1"
 $script:AiClient_ApiKey = ""
@@ -611,7 +616,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
         # Validate: check word count matches
         $responseWords = @(($segmentedText -replace '<br>', ' ') -split '\s+' | Where-Object { $_ })
         if ($responseWords.Count -ne $wordTexts.Count) {
-            Write-Warning "Word count mismatch: expected $($wordTexts.Count), got $($responseWords.Count)"
+            Show-Warning "    Word count mismatch: expected $($wordTexts.Count), got $($responseWords.Count)"
             $userPrompt = "Error: You modified the text. Original has $($wordTexts.Count) words, your response has $($responseWords.Count). Return the EXACT original text with only <br> markers inserted:`n$fullText"
             continue
         }
@@ -629,7 +634,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
             $endIndex = $currentWordIndex + $partWords.Count - 1
 
             if ($endIndex -ge $Words.Count) {
-                Write-Warning "Index out of range: endIndex=$endIndex, Words.Count=$($Words.Count)"
+                Show-Warning "    Index out of range: endIndex=$endIndex, Words.Count=$($Words.Count)"
                 break
             }
 
@@ -657,7 +662,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
     }
 
     # Fallback: single segment
-    Write-Warning "Word-based segmentation failed, using single segment"
+    Show-Warning "  Word-based segmentation failed, using single segment"
     return @(@{
         StartIndex = 0
         EndIndex = $Words.Count - 1
