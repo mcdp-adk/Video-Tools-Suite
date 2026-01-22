@@ -5,6 +5,9 @@
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
+if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\tui-utils.ps1"
+}
 if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\lang-config.ps1"
 }
@@ -52,7 +55,7 @@ function Invoke-FullWorkflow {
     }
 
     # Save original window title for progress display
-    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $originalTitle = Save-WindowTitle
 
     # Ensure output directory exists
     if (-not (Test-Path $script:WorkflowOutputDir)) {
@@ -66,7 +69,7 @@ function Invoke-FullWorkflow {
 
     #region Step 1: Download
     if (-not $SkipDownload -and -not $ExistingProjectDir) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 1/3 - Downloading..."
+        Set-VtsWindowTitle -Phase Download -Status "Downloading..."
         Show-Step "[Step 1/3] Downloading video and subtitles..."
 
         # Create project directory using shared function from download.ps1
@@ -142,7 +145,7 @@ function Invoke-FullWorkflow {
     $bilingualAssPath = ""
 
     if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 2/3 - Translating..."
+        Set-VtsWindowTitle -Phase Translate -Status "Translating..."
         Write-Host ""
         Show-Step "[Step 2/3] Translating subtitles..."
 
@@ -177,7 +180,7 @@ function Invoke-FullWorkflow {
 
     #region Step 3: Mux
     if (-not $SkipMux -and $videoPath -and $bilingualAssPath) {
-        $Host.UI.RawUI.WindowTitle = "VTS: Step 3/3 - Muxing..."
+        Set-VtsWindowTitle -Phase Mux -Status "Muxing..."
         Write-Host ""
         Show-Step "[Step 3/3] Muxing subtitle into video..."
 
@@ -227,7 +230,7 @@ function Invoke-FullWorkflow {
     #endregion
 
     # Restore original window title
-    $Host.UI.RawUI.WindowTitle = $originalTitle
+    Restore-WindowTitle -Title $originalTitle
 
     return @{
         ProjectDir = $projectDir

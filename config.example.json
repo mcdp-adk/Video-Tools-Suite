@@ -7,5 +7,6 @@
   "AiApiKey": "",
   "AiModel": "gpt-4o-mini",
   "TargetLanguage": "zh-Hans",
-  "GenerateTranscriptInWorkflow": false
+  "GenerateTranscriptInWorkflow": false,
+  "BatchParallelDownloads": 3
 }

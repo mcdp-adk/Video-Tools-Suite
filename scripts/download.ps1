@@ -232,13 +232,29 @@ function Get-PlaylistVideoUrls {
 
 # Get common yt-dlp arguments
 function Get-CommonYtDlpArgs {
-    return @(
+    param(
+        [switch]$ShowProgress
+    )
+
+    $args = @(
         "--no-warnings",
-        "--no-progress",
-        "--console-title",
         "--restrict-filenames",
         "--compat-options", "no-live-chat"
     )
+
+    if ($ShowProgress) {
+        # Use emoji in window title: 📥 Downloading XX%
+        $emoji = [char]::ConvertFromUtf32(0x1F4E5)
+        $args += @(
+            "--progress",
+            "--newline",
+            "--progress-template", "download-title:$emoji Downloading %(progress._percent_str)s"
+        )
+    } else {
+        $args += "--no-progress"
+    }
+
+    return $args
 }
 
 # Create project directory for a video
@@ -284,7 +300,7 @@ function Invoke-VideoDownload {
 
     $url = Get-NormalizedUrl -Url $Url
     $cookieArgs = Get-CookieArgs
-    $commonArgs = Get-CommonYtDlpArgs
+    $commonArgs = Get-CommonYtDlpArgs -ShowProgress:(-not $Quiet)
 
     if (-not $Quiet) {
         Show-Info "Downloading video..."
@@ -298,7 +314,12 @@ function Invoke-VideoDownload {
         "-o", "$ProjectDir\video.%(ext)s",
         $url
     )
-    & yt-dlp $videoArgs 2>&1 | Out-Null
+
+    if ($Quiet) {
+        & yt-dlp @videoArgs 2>&1 | Out-Null
+    } else {
+        & yt-dlp @videoArgs
+    }
 
     if ($LASTEXITCODE -ne 0) {
         throw "Video download failed"

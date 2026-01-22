@@ -5,6 +5,9 @@
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
+if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\tui-utils.ps1"
+}
 
 # Configuration (set by vts.ps1 from config.json)
 $script:AiClient_BaseUrl = "https://api.openai.com/v1"
@@ -945,7 +948,7 @@ Respond ONLY with the JSON array, no explanations.
     $translatedEntries = @()
 
     # Save original window title for progress display
-    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $originalTitle = Save-WindowTitle
 
     # Process in batches
     $totalBatches = [math]::Ceiling($Entries.Count / $BatchSize)
@@ -953,7 +956,7 @@ Respond ONLY with the JSON array, no explanations.
     try {
         for ($batchIndex = 0; $batchIndex -lt $totalBatches; $batchIndex++) {
             # Update window title with progress
-            $Host.UI.RawUI.WindowTitle = "VTS: Translating batch $($batchIndex + 1)/$totalBatches..."
+            Set-VtsWindowTitle -Phase Translate -Status "Translating batch $($batchIndex + 1)/$totalBatches..."
 
             $startIdx = $batchIndex * $BatchSize
             $endIdx = [math]::Min($startIdx + $BatchSize - 1, $Entries.Count - 1)
@@ -1037,7 +1040,7 @@ Respond ONLY with the JSON array, no explanations.
     }
     finally {
         # Restore original window title
-        $Host.UI.RawUI.WindowTitle = $originalTitle
+        Restore-WindowTitle -Title $originalTitle
     }
 
     return $translatedEntries
@@ -1086,11 +1089,11 @@ Only include entries that need changes. Respond ONLY with the JSON array.
     }
 
     $totalBatches = [math]::Ceiling($BilingualEntries.Count / $BatchSize)
-    $originalTitle = $Host.UI.RawUI.WindowTitle
+    $originalTitle = Save-WindowTitle
 
     try {
         for ($batchIndex = 0; $batchIndex -lt $totalBatches; $batchIndex++) {
-            $Host.UI.RawUI.WindowTitle = "VTS: Proofreading batch $($batchIndex + 1)/$totalBatches..."
+            Set-VtsWindowTitle -Phase Translate -Status "Proofreading batch $($batchIndex + 1)/$totalBatches..."
 
             $startIdx = $batchIndex * $BatchSize
             $endIdx = [math]::Min($startIdx + $BatchSize - 1, $BilingualEntries.Count - 1)
@@ -1165,7 +1168,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
         }
     }
     finally {
-        $Host.UI.RawUI.WindowTitle = $originalTitle
+        Restore-WindowTitle -Title $originalTitle
     }
 
     return $result

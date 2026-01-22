@@ -49,6 +49,7 @@ vts.bat → vts.ps1 (主 TUI 程序)
     ├── subtitle-utils.ps1 → Import-SubtitleFile, New-BilingualAssContent, Export-AssFile
     ├── glossary.ps1      → Get-AllGlossaryTerms, Import-Glossary
     ├── lang-config.ps1   → Get-LanguageDisplayName, $script:LanguageMap, $script:DefaultTargetLanguage
+    ├── tui-utils.ps1     → Set-VtsWindowTitle, Save-WindowTitle, New-ProgressBar, Write-AtPosition
     └── utils.ps1         → Show-Success, Show-Error, Show-Warning, Show-Info
 ```
 
@@ -75,6 +76,31 @@ Get-LanguageDisplayName -LangCode 'zh-Hans'  # 返回 'Chinese (Simplified)'
 
 **向后兼容**：`Import-Config` 自动将旧配置 `zh-CN` → `zh-Hans`，`zh-TW` → `zh-Hant`
 
+### TUI 工具 (tui-utils.ps1)
+
+提供统一的窗口标题和进度显示功能：
+
+**窗口标题 Emoji 规范**：
+| 阶段 | Emoji | 示例 |
+|------|-------|------|
+| 下载 | 📥 | `📥 Downloading 45%` |
+| Transcript | 📝 | `📝 Generating transcript...` |
+| 翻译 | 🌐 | `🌐 Translating batch 3/5...` |
+| 封装 | 🎬 | `🎬 Muxing...` |
+
+```powershell
+# 设置窗口标题
+Set-VtsWindowTitle -Phase Download -Status "Downloading..."
+
+# 保存和恢复标题
+$originalTitle = Save-WindowTitle
+# ... 执行操作 ...
+Restore-WindowTitle -Title $originalTitle
+
+# 生成进度条
+New-ProgressBar -Current 5 -Total 10  # 返回 "[████████░░░░] 5/10"
+```
+
 ### 主 API 函数
 
 | 模块 | 主 API | 用途 |
@@ -88,10 +114,14 @@ Get-LanguageDisplayName -LangCode 'zh-Hans'  # 返回 'Chinese (Simplified)'
 | transcript.ps1 | `Invoke-TranscriptGenerator` | 字幕转纯文本 |
 | mux.ps1 | `Invoke-SubtitleMuxer` | 字幕内封到视频 |
 | workflow.ps1 | `Invoke-FullWorkflow` | 全流程处理 (Download → Translate → Mux) |
-| batch.ps1 | `Invoke-BatchWorkflow` | 批量处理多个视频 |
+| batch.ps1 | `Invoke-BatchWorkflow` | 批量处理多个视频（并行下载 + 顺序翻译/封装） |
+| batch.ps1 | `Invoke-ParallelDownload` | 并行下载多个视频 |
 | batch.ps1 | `Invoke-BatchRetry` | 重试失败项 |
 | lang-config.ps1 | `Get-LanguageDisplayName` | 获取语言代码的显示名称 |
 | utils.ps1 | `Show-Success/Error/Warning/Info` | 统一消息输出 |
+| tui-utils.ps1 | `Set-VtsWindowTitle` | 设置带 emoji 的窗口标题 |
+| tui-utils.ps1 | `New-ProgressBar` | 生成进度条字符串 |
+| tui-utils.ps1 | `Write-AtPosition` | 在指定位置写入文本（用于 TUI 刷新） |
 
 ### Invoke-SubtitleDownload 返回值
 
@@ -188,6 +218,7 @@ do {
 | `AiModel` | string | `"gpt-4o-mini"` | AI 模型名称 |
 | `TargetLanguage` | string | `"zh-Hans"` | 翻译目标语言 |
 | `GenerateTranscriptInWorkflow` | bool | `false` | 工作流中是否生成纯文本 |
+| `BatchParallelDownloads` | int | `3` | 批量下载并行数 (1-10) |
 
 ### 配置同步机制
 
@@ -209,6 +240,9 @@ config.json → Import-Config → $script:Config → Apply-ConfigToModules → �
 | `AiBaseUrl` | `$script:AiClient_BaseUrl` | ai-client.ps1 |
 | `AiApiKey` | `$script:AiClient_ApiKey` | ai-client.ps1 |
 | `AiModel` | `$script:AiClient_Model` | ai-client.ps1 |
+| `BatchParallelDownloads` | `$script:BatchParallelDownloads` | batch.ps1 |
+| `OutputDir` | `$script:BatchOutputDir` | batch.ps1 |
+| `GenerateTranscriptInWorkflow` | `$script:GenerateTranscriptInWorkflow` | batch.ps1 |
 
 ### Claude 测试命令指南
 

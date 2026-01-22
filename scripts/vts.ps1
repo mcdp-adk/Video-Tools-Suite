@@ -35,6 +35,7 @@ $script:Config = @{
     AiModel = "gpt-4o-mini"
     TargetLanguage = $script:DefaultTargetLanguage
     GenerateTranscriptInWorkflow = $false
+    BatchParallelDownloads = 3
 }
 
 # Load config from file
@@ -53,6 +54,7 @@ function Import-Config {
             if ($fileConfig.AiModel) { $script:Config.AiModel = $fileConfig.AiModel }
             if ($fileConfig.TargetLanguage) { $script:Config.TargetLanguage = $fileConfig.TargetLanguage }
             if ($null -ne $fileConfig.GenerateTranscriptInWorkflow) { $script:Config.GenerateTranscriptInWorkflow = $fileConfig.GenerateTranscriptInWorkflow }
+            if ($null -ne $fileConfig.BatchParallelDownloads) { $script:Config.BatchParallelDownloads = $fileConfig.BatchParallelDownloads }
 
             # Backward compatibility: map old config keys
             if ($fileConfig.DownloadDir) { $script:Config.OutputDir = $fileConfig.DownloadDir }
@@ -99,6 +101,11 @@ function Apply-ConfigToModules {
     $script:AiClient_BaseUrl = $script:Config.AiBaseUrl   # ai-client.ps1
     $script:AiClient_ApiKey = $script:Config.AiApiKey     # ai-client.ps1
     $script:AiClient_Model = $script:Config.AiModel       # ai-client.ps1
+
+    # Sync batch settings
+    $script:BatchParallelDownloads = $script:Config.BatchParallelDownloads  # batch.ps1
+    $script:BatchOutputDir = $outputDir                                      # batch.ps1
+    $script:GenerateTranscriptInWorkflow = $script:Config.GenerateTranscriptInWorkflow  # batch.ps1
 }
 
 # Load config on startup
@@ -498,7 +505,9 @@ function Invoke-SettingsMenu {
         }
         Write-Host "  [7] Generate Transcript: " -NoNewline -ForegroundColor Gray
         Write-Host $(if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }) -ForegroundColor White
-        Show-Hint "  [8] Glossaries..."
+        Write-Host "  [8] Parallel Downloads:  " -NoNewline -ForegroundColor Gray
+        Write-Host "$($script:Config.BatchParallelDownloads)" -ForegroundColor White
+        Show-Hint "  [9] Glossaries..."
         Show-Hint "  [R] Re-run Setup Wizard"
         Write-Host ""
         Write-Host "  [B] Back" -ForegroundColor DarkGray
@@ -621,6 +630,25 @@ function Invoke-SettingsMenu {
                 Start-Sleep -Seconds 1
             }
             '8' {
+                Write-Host ""
+                Write-Host "  Enter parallel download count (1-10):" -ForegroundColor Cyan
+                $input = Read-Host "  [default: $($script:Config.BatchParallelDownloads)]"
+                if (-not $input) {
+                    # Keep current value
+                }
+                elseif ($input -match '^\d+$' -and [int]$input -ge 1 -and [int]$input -le 10) {
+                    $script:Config.BatchParallelDownloads = [int]$input
+                    Apply-ConfigToModules
+                    Export-Config
+                    Show-Success "  Parallel downloads set to $input"
+                    Start-Sleep -Seconds 1
+                }
+                else {
+                    Show-Error "  Invalid input. Must be 1-10."
+                    Start-Sleep -Seconds 1
+                }
+            }
+            '9' {
                 Show-GlossaryMenu
             }
             'R' {

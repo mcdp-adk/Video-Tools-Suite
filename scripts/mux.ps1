@@ -2,6 +2,9 @@
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
+if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\tui-utils.ps1"
+}
 
 # Configuration
 $script:MuxerOutputDir = "$PSScriptRoot\..\output"
@@ -156,14 +159,14 @@ function Invoke-SubtitleMuxer {
     }
 
     # Update window title for progress display
-    $originalTitle = $Host.UI.RawUI.WindowTitle
-    $Host.UI.RawUI.WindowTitle = "VTS: Muxing subtitles..."
+    $originalTitle = Save-WindowTitle
+    Set-VtsWindowTitle -Phase Mux -Status "Muxing..."
 
     try {
         $ffmpegOutput = & ffmpeg $ffmpegArgs 2>&1
     }
     finally {
-        $Host.UI.RawUI.WindowTitle = $originalTitle
+        Restore-WindowTitle -Title $originalTitle
     }
 
     if ($LASTEXITCODE -ne 0) {
