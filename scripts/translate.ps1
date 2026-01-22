@@ -64,7 +64,7 @@ function Invoke-SubtitleTranslator {
         }
 
         # Use cue-based segmentation: process in batches
-        $segments = Invoke-CueBasedSegmentation -Cues $subtitleData.Cues -Words $subtitleData.Words
+        $segments = Invoke-CueBasedSegmentation -Cues $subtitleData.Cues -Words $subtitleData.Words -Quiet:$Quiet
 
         # Convert segments to entries with timestamps
         $entries = ConvertTo-SubtitleEntriesFromSegments -Segments $segments -Words $subtitleData.Words

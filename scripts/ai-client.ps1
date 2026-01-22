@@ -576,7 +576,8 @@ function Invoke-CueBasedSegmentation {
         [int]$MaxWordsPerSegment = 18,
         [int]$MinWordsPerSegment = 5,
         [int]$CuesPerBatch = 25,         # Process ~25 cues at a time (~150-200 words)
-        [int]$MaxAttempts = 3
+        [int]$MaxAttempts = 3,
+        [switch]$Quiet
     )
 
     $allSegments = @()
@@ -595,7 +596,9 @@ function Invoke-CueBasedSegmentation {
 
         if ($batchWords.Count -eq 0) { continue }
 
-        Show-Detail "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..."
+        if (-not $Quiet) {
+            Show-Detail "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..."
+        }
 
         # Get segments for this batch using AI
         $batchSegments = Invoke-BatchSegmentation -Words $batchWords -MaxWordsPerSegment $MaxWordsPerSegment -MinWordsPerSegment $MinWordsPerSegment -MaxAttempts $MaxAttempts
@@ -612,7 +615,9 @@ function Invoke-CueBasedSegmentation {
         $globalWordOffset += $batchWords.Count
     }
 
-    Show-Success "  Total segments: $($allSegments.Count)"
+    if (-not $Quiet) {
+        Show-Success "  Total segments: $($allSegments.Count)"
+    }
     return $allSegments
 }
 

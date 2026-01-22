@@ -120,14 +120,15 @@ function Invoke-ParallelDownload {
                 # Update slot display - starting
                 $icon = $script:StatusIcon.InProgress
                 Write-AtPosition -X 4 -Y ($slotStartLine + $slotIdx) `
-                    -Text "Slot $($slotIdx + 1): $icon [$videoId] Downloading..." -Color Cyan
+                    -Text "Slot $($slotIdx + 1): $icon [$videoId] Downloading..." -Color Cyan -ClearWidth 70
 
                 # Start job
                 $job = Start-Job -ScriptBlock {
-                    param($ScriptRoot, $Url, $TargetLang)
+                    param($ScriptRoot, $Url, $TargetLang, $OutputDir)
                     . "$ScriptRoot\utils.ps1"
                     . "$ScriptRoot\download.ps1"
                     $script:TargetLanguage = $TargetLang
+                    $script:YtdlOutputDir = $OutputDir
 
                     try {
                         $project = New-VideoProjectDir -Url $Url
@@ -155,7 +156,7 @@ function Invoke-ParallelDownload {
                             VideoId = $null
                         }
                     }
-                } -ArgumentList $PSScriptRoot, $url, $script:TargetLanguage
+                } -ArgumentList $PSScriptRoot, $url, $script:TargetLanguage, $script:BatchOutputDir
 
                 $slots[$slotIdx] = @{ Status = "running"; VideoId = $videoId; Job = $job; Url = $url }
             }
@@ -185,7 +186,7 @@ function Invoke-ParallelDownload {
 
                 # Update slot display - completed
                 Write-AtPosition -X 4 -Y ($slotStartLine + $slotIdx) `
-                    -Text "Slot $($slotIdx + 1): $icon [$($slots[$slotIdx].VideoId)] $status" -Color $color
+                    -Text "Slot $($slotIdx + 1): $icon [$($slots[$slotIdx].VideoId)] $status" -Color $color -ClearWidth 70
 
                 # Mark slot as waiting for next job
                 $slots[$slotIdx] = @{ Status = "waiting"; VideoId = ""; Job = $null }
@@ -217,7 +218,7 @@ function Invoke-ParallelDownload {
 
                 $icon = $script:StatusIcon.Failed
                 Write-AtPosition -X 4 -Y ($slotStartLine + $slotIdx) `
-                    -Text "Slot $($slotIdx + 1): $icon [$($slots[$slotIdx].VideoId)] Failed" -Color Red
+                    -Text "Slot $($slotIdx + 1): $icon [$($slots[$slotIdx].VideoId)] Failed" -Color Red -ClearWidth 70
 
                 $slots[$slotIdx] = @{ Status = "waiting"; VideoId = ""; Job = $null }
 
