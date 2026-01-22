@@ -187,10 +187,15 @@ function Invoke-FullWorkflow {
     $subtitlePath = ""
     $skipTranslation = $false
 
+    # Calculate total steps dynamically
+    $totalSteps = if ($GenerateTranscript) { 4 } else { 3 }
+    $currentStep = 0
+
     #region Step 1: Download
+    $currentStep++
     if (-not $SkipDownload -and -not $ExistingProjectDir) {
         Set-VtsWindowTitle -Phase Download -Status "Downloading..."
-        Show-Step "[Step 1/3] Downloading video and subtitles..."
+        Show-Step "[Step $currentStep/$totalSteps] Downloading video and subtitles..."
 
         # Create project directory using shared function from download.ps1
         $project = New-VideoProjectDir -Url $InputUrl
@@ -223,8 +228,7 @@ function Invoke-FullWorkflow {
         }
     }
     else {
-        Write-Host ""
-        Show-Hint "[Step 1/3] Skipping download (using existing files)"
+        Show-Hint "[Step $currentStep/$totalSteps] Skipping download (using existing files)"
 
         if ($ExistingProjectDir) {
             $projectDir = $ExistingProjectDir
@@ -251,10 +255,11 @@ function Invoke-FullWorkflow {
 
     #endregion
 
-    #region Step 1.5: Generate Transcript (Optional)
+    #region Step 2: Generate Transcript (Optional)
     if ($GenerateTranscript -and $subtitlePath) {
+        $currentStep++
         Set-VtsWindowTitle -Phase Transcript -Status "Generating transcript..."
-        Show-Step "[Step 1.5/3] Generating transcript..."
+        Show-Step "[Step $currentStep/$totalSteps] Generating transcript..."
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
         Invoke-TranscriptGenerator -InputPath $subtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
@@ -262,12 +267,13 @@ function Invoke-FullWorkflow {
     }
     #endregion
 
-    #region Step 2: Translate
+    #region Step 3: Translate
+    $currentStep++
     $bilingualAssPath = ""
 
     if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
         Set-VtsWindowTitle -Phase Translate -Status "Translating..."
-        Show-Step "[Step 2/3] Translating subtitles..."
+        Show-Step "[Step $currentStep/$totalSteps] Translating subtitles..."
 
         # Check language
         $subtitleData = Import-SubtitleFile -Path $subtitlePath
@@ -282,12 +288,10 @@ function Invoke-FullWorkflow {
         Show-Detail "Entries: $($translateResult.EntryCount)"
     }
     elseif ($skipTranslation) {
-        Write-Host ""
-        Show-Hint "[Step 2/3] Skipping translation (target language subtitle available)"
+        Show-Hint "[Step $currentStep/$totalSteps] Skipping translation (target language subtitle available)"
     }
     else {
-        Write-Host ""
-        Show-Hint "[Step 2/3] Skipping translation"
+        Show-Hint "[Step $currentStep/$totalSteps] Skipping translation"
 
         # Look for existing bilingual subtitle
         $existingAss = Join-Path $projectDir "bilingual.ass"
@@ -298,10 +302,11 @@ function Invoke-FullWorkflow {
 
     #endregion
 
-    #region Step 3: Mux
+    #region Step 4: Mux
+    $currentStep++
     if (-not $SkipMux -and $videoPath -and $bilingualAssPath) {
         Set-VtsWindowTitle -Phase Mux -Status "Muxing..."
-        Show-Step "[Step 3/3] Muxing subtitle into video..."
+        Show-Step "[Step $currentStep/$totalSteps] Muxing subtitle into video..."
 
         # Output MKV to parent directory
         $videoId = Split-Path -Leaf $projectDir
@@ -335,15 +340,13 @@ function Invoke-FullWorkflow {
         Show-Detail "Output: $outputMkvPath"
     }
     elseif ($skipTranslation -and $videoPath) {
-        Write-Host ""
-        Show-Hint "[Step 3/3] Skipping mux (no translation needed)"
-        Write-Host ""
+        Show-Hint "[Step $currentStep/$totalSteps] Skipping mux (no translation needed)"
+
         Show-Success "Workflow completed!"
         Show-Detail "Note: Video already has target language subtitles embedded"
     }
     else {
-        Write-Host ""
-        Show-Hint "[Step 3/3] Skipping mux"
+        Show-Hint "[Step $currentStep/$totalSteps] Skipping mux"
     }
 
     #endregion
