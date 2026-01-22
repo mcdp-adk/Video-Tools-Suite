@@ -36,15 +36,10 @@ function Start-SetupWizard {
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
 
+    # Only store fields that the wizard actually collects
+    # Other fields (like BatchParallelDownloads) keep their defaults from vts.ps1
     $config = @{
         FirstRun = $false
-        OutputDir = "./output"
-        CookieFile = ""
-        AiProvider = "openai"
-        AiBaseUrl = "https://api.openai.com/v1"
-        AiApiKey = ""
-        AiModel = "gpt-4o-mini"
-        TargetLanguage = $script:DefaultTargetLanguage
     }
 
     #region Step 1: Output Directory

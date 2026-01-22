@@ -76,6 +76,15 @@ function Export-Config {
     $script:Config | ConvertTo-Json | Set-Content $script:ConfigFile -Encoding UTF8
 }
 
+# Merge partial config into main config (only overwrites keys that exist in partial)
+function Merge-Config {
+    param([hashtable]$PartialConfig)
+
+    foreach ($key in $PartialConfig.Keys) {
+        $script:Config[$key] = $PartialConfig[$key]
+    }
+}
+
 # Apply configuration to all module variables
 # Apply configuration to all modules
 # This ensures all $script:* variables in submodules are synchronized with central config
@@ -654,7 +663,7 @@ function Invoke-SettingsMenu {
             'R' {
                 $script:Config.FirstRun = $true
                 $newConfig = Start-SetupWizard
-                $script:Config = $newConfig
+                Merge-Config -PartialConfig $newConfig
                 Apply-ConfigToModules
                 Export-Config
             }
@@ -673,7 +682,7 @@ function Start-MainMenu {
     # Check for first run
     if ($script:Config.FirstRun) {
         $newConfig = Start-SetupWizard
-        $script:Config = $newConfig
+        Merge-Config -PartialConfig $newConfig
         Apply-ConfigToModules
         Export-Config
     }
