@@ -562,6 +562,167 @@ function Split-LongSegments {
     return $result
 }
 
+# Cue-based segmentation: process cues in batches, AI inserts <br> markers within each batch
+# Returns array of objects: @{ StartIndex; EndIndex; Text } (word indices in flat Words array)
+function Invoke-CueBasedSegmentation {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Cues,                    # Array of @{ StartTime; EndTime; Words }
+        [Parameter(Mandatory=$true)]
+        [array]$Words,                   # Flat array of @{ Word; StartTime; CueIndex }
+        [int]$MaxWordsPerSegment = 18,
+        [int]$MinWordsPerSegment = 5,
+        [int]$CuesPerBatch = 25,         # Process ~25 cues at a time (~150-200 words)
+        [int]$MaxAttempts = 3
+    )
+
+    $allSegments = @()
+    $globalWordOffset = 0
+
+    # Process cues in batches
+    for ($batchStart = 0; $batchStart -lt $Cues.Count; $batchStart += $CuesPerBatch) {
+        $batchEnd = [Math]::Min($batchStart + $CuesPerBatch - 1, $Cues.Count - 1)
+        $batchCues = @($Cues[$batchStart..$batchEnd])
+
+        # Collect words for this batch
+        $batchWords = @()
+        foreach ($cue in $batchCues) {
+            $batchWords += $cue.Words
+        }
+
+        if ($batchWords.Count -eq 0) { continue }
+
+        Write-Host "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..." -ForegroundColor Gray
+
+        # Get segments for this batch using AI
+        $batchSegments = Invoke-BatchSegmentation -Words $batchWords -MaxWordsPerSegment $MaxWordsPerSegment -MinWordsPerSegment $MinWordsPerSegment -MaxAttempts $MaxAttempts
+
+        # Adjust indices to global offset
+        foreach ($segment in $batchSegments) {
+            $allSegments += @{
+                StartIndex = $segment.StartIndex + $globalWordOffset
+                EndIndex = $segment.EndIndex + $globalWordOffset
+                Text = $segment.Text
+            }
+        }
+
+        $globalWordOffset += $batchWords.Count
+    }
+
+    Write-Host "  Total segments: $($allSegments.Count)" -ForegroundColor Green
+    return $allSegments
+}
+
+# Internal: segment a batch of words using AI
+function Invoke-BatchSegmentation {
+    param(
+        [array]$Words,
+        [int]$MaxWordsPerSegment,
+        [int]$MinWordsPerSegment,
+        [int]$MaxAttempts
+    )
+
+    $wordTexts = @($Words | ForEach-Object { $_.Word })
+    $fullText = $wordTexts -join ' '
+
+    # If batch is small enough, just return as single segment
+    if ($wordTexts.Count -le $MaxWordsPerSegment) {
+        return @(@{
+            StartIndex = 0
+            EndIndex = $wordTexts.Count - 1
+            Text = $fullText
+        })
+    }
+
+    $systemPrompt = @"
+You are a subtitle segmentation expert. Insert <br> markers to split text into subtitle segments.
+
+RULES:
+1. Each segment should be $MinWordsPerSegment-$MaxWordsPerSegment words
+2. Insert <br> at natural breaks: after sentences, at commas, conjunctions (and, but, because, so)
+3. DO NOT modify any words - only insert <br> markers between words
+4. DO NOT create segments shorter than $MinWordsPerSegment words unless it's the last segment
+5. Return ONLY the text with <br> markers, no explanations
+
+Example input: "well I think the biggest problem with this club is that we keep making the same mistakes"
+Example output: "well I think the biggest problem with this club<br>is that we keep making the same mistakes"
+"@
+
+    $userPrompt = "Insert <br> markers to segment this text:`n$fullText"
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.1 -MaxTokens 4096
+
+        # Clean response
+        $segmentedText = ($response -replace "`r?`n", " ").Trim()
+
+        # Validate: check word count matches
+        $responseWords = @(($segmentedText -replace '<br>', ' ') -split '\s+' | Where-Object { $_ })
+        if ($responseWords.Count -ne $wordTexts.Count) {
+            if ($attempt -lt $MaxAttempts) {
+                $userPrompt = "Error: Word count mismatch (expected $($wordTexts.Count), got $($responseWords.Count)). Return EXACT original text with only <br> inserted:`n$fullText"
+                continue
+            }
+            # Final attempt failed, use rule-based fallback
+            return Split-TextByRules -Words $Words -MaxWordsPerSegment $MaxWordsPerSegment
+        }
+
+        # Parse segments by <br> positions
+        $segments = @()
+        $currentWordIndex = 0
+        $parts = $segmentedText -split '<br>'
+
+        foreach ($part in $parts) {
+            $partWords = @($part.Trim() -split '\s+' | Where-Object { $_ })
+            if ($partWords.Count -eq 0) { continue }
+
+            $startIndex = $currentWordIndex
+            $endIndex = $currentWordIndex + $partWords.Count - 1
+
+            if ($endIndex -ge $Words.Count) { break }
+
+            $segments += @{
+                StartIndex = $startIndex
+                EndIndex = $endIndex
+                Text = $partWords -join ' '
+            }
+
+            $currentWordIndex = $endIndex + 1
+        }
+
+        if ($segments.Count -gt 0) {
+            return $segments
+        }
+    }
+
+    # Fallback: rule-based splitting
+    return Split-TextByRules -Words $Words -MaxWordsPerSegment $MaxWordsPerSegment
+}
+
+# Rule-based fallback: split by word count
+function Split-TextByRules {
+    param(
+        [array]$Words,
+        [int]$MaxWordsPerSegment
+    )
+
+    $segments = @()
+    $wordTexts = @($Words | ForEach-Object { $_.Word })
+
+    for ($i = 0; $i -lt $wordTexts.Count; $i += $MaxWordsPerSegment) {
+        $endIdx = [Math]::Min($i + $MaxWordsPerSegment - 1, $wordTexts.Count - 1)
+        $segmentWords = $wordTexts[$i..$endIdx]
+
+        $segments += @{
+            StartIndex = $i
+            EndIndex = $endIdx
+            Text = $segmentWords -join ' '
+        }
+    }
+
+    return $segments
+}
+
 # Word-based segmentation: AI inserts <br> markers, we split by word index
 # Returns array of objects: @{ StartIndex; EndIndex; Text }
 function Invoke-WordBasedSegmentation {
