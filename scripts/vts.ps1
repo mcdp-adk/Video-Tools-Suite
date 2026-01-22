@@ -227,7 +227,6 @@ function Invoke-FullWorkflowMenu {
             return
         }
 
-        Write-Host ""
         $result = Invoke-FullWorkflow -InputUrl $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
 
         # Store project dir for potential retry
