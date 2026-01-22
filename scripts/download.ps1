@@ -376,7 +376,7 @@ function Invoke-SubtitleDownload {
     $videoLang = $subInfo.VideoLanguage
 
     if (-not $Quiet) {
-        Show-Detail "Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })" -Indent 2
+        Show-Detail "Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })"
     }
 
     # Priority 1: Check if target language manual subtitle exists
