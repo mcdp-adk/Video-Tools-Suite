@@ -393,11 +393,17 @@ function Invoke-BatchWorkflow {
         }
     }
 
+    # Combine all failures for retry
+    $allFailed = @()
+    $allFailed += $failedDownloads
+    $allFailed += $translateFailed
+
     return @{
         Total = $total
         Success = $totalSuccess
         DownloadFailed = $failedDownloads
         TranslateFailed = $translateFailed
+        Failed = $allFailed
     }
 }
 
