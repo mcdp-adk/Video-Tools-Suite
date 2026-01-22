@@ -20,6 +20,9 @@ if (-not (Get-Command "Invoke-SubtitleMuxer" -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command "Invoke-TranscriptGenerator" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\transcript.ps1"
 }
+if (-not (Get-Command "Resume-Workflow" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\workflow.ps1"
+}
 
 # Configuration (set by vts.ps1)
 $script:BatchParallelDownloads = 3
@@ -396,15 +399,65 @@ function Invoke-BatchWorkflow {
     }
 }
 
-# Retry failed items from a previous batch
+# Smart retry failed items - skips completed stages
 function Invoke-BatchRetry {
     param(
         [Parameter(Mandatory=$true)]
         [array]$FailedItems
     )
 
-    $urls = $FailedItems | ForEach-Object { $_.Url }
-    return Invoke-BatchWorkflow -Urls $urls
+    $total = $FailedItems.Count
+    Show-Info "Retrying $total failed items with smart resume..."
+    Write-Host ""
+
+    $results = @()
+    $successCount = 0
+    $failCount = 0
+
+    foreach ($item in $FailedItems) {
+        $displayName = if ($item.Title) { $item.Title } elseif ($item.VideoId) { $item.VideoId } else { $item.Url }
+
+        # Check if we have a project directory to resume from
+        if ($item.ProjectDir -and (Test-Path -LiteralPath $item.ProjectDir)) {
+            Show-Detail "  Resuming: $displayName"
+            $retryResult = Resume-Workflow -ProjectDir $item.ProjectDir -Url $item.Url
+        }
+        else {
+            Show-Detail "  Restarting: $displayName"
+            # No project dir, start fresh
+            try {
+                $project = New-VideoProjectDir -Url $item.Url
+                $retryResult = Resume-Workflow -ProjectDir $project.ProjectDir -Url $item.Url
+            }
+            catch {
+                $retryResult = @{ Success = $false; Error = $_.Exception.Message }
+            }
+        }
+
+        if ($retryResult.Success) {
+            $successCount++
+            $icon = $script:StatusIcon.Done
+            Show-Success "  $icon $displayName"
+            $results += @{ Success = $true; Url = $item.Url; ProjectDir = $item.ProjectDir }
+        }
+        else {
+            $failCount++
+            $icon = $script:StatusIcon.Failed
+            Show-Error "  $icon ${displayName}: $($retryResult.Error)"
+            $results += @{ Success = $false; Url = $item.Url; ProjectDir = $item.ProjectDir; Error = $retryResult.Error }
+        }
+    }
+
+    Write-Host ""
+    Show-Info "Retry complete: $successCount succeeded, $failCount failed"
+
+    $stillFailed = @($results | Where-Object { -not $_.Success })
+
+    return @{
+        Total = $total
+        Success = $successCount
+        Failed = $stillFailed
+    }
 }
 
 #endregion

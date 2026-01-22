@@ -211,6 +211,9 @@ function Invoke-FullWorkflowMenu {
     Clear-Host
     Show-Header "All-in-One Workflow"
 
+    $projectDir = $null
+    $url = $null
+
     try {
         Write-Host "This will download video, translate subtitles, and mux them together." -ForegroundColor Cyan
         Write-Host ""
@@ -225,9 +228,34 @@ function Invoke-FullWorkflowMenu {
 
         Write-Host ""
         $result = Invoke-FullWorkflow -InputUrl $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
+
+        # Store project dir for potential retry
+        if ($result -and $result.ProjectDir) {
+            $projectDir = $result.ProjectDir
+        }
     }
     catch {
         Show-Error $_.Exception.Message
+
+        # Offer retry if we have project info
+        if ($projectDir -or $url) {
+            Write-Host ""
+            $retry = Read-Host "Retry? (y/n)"
+            if ($retry -eq 'y') {
+                if ($projectDir) {
+                    # Smart retry from last stage
+                    $retryResult = Resume-Workflow -ProjectDir $projectDir -Url $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
+                    if (-not $retryResult.Success) {
+                        Show-Error $retryResult.Error
+                    }
+                }
+                else {
+                    # Retry from scratch
+                    Invoke-FullWorkflowMenu
+                    return
+                }
+            }
+        }
     }
 
     Pause-Menu

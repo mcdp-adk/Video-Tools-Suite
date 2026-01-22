@@ -31,6 +31,126 @@ if (-not (Get-Command "Invoke-TranscriptGenerator" -ErrorAction SilentlyContinue
 $script:WorkflowOutputDir = "$PSScriptRoot\..\output"
 $script:TargetLanguage = $script:DefaultTargetLanguage
 
+# Detect project completion status by checking artifact files
+function Get-ProjectStatus {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir,
+        [string]$OutputDir = $script:WorkflowOutputDir
+    )
+
+    $status = @{
+        ProjectDir = $ProjectDir
+        HasVideo = $false
+        HasSubtitle = $false
+        HasBilingual = $false
+        HasFinalMkv = $false
+        VideoPath = $null
+        SubtitlePath = $null
+        BilingualPath = $null
+        FinalMkvPath = $null
+        NextStage = "download"
+    }
+
+    if (-not (Test-Path -LiteralPath $ProjectDir)) {
+        return $status
+    }
+
+    # Check for video file
+    $videoFile = Get-ChildItem -LiteralPath $ProjectDir -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^video\.(mp4|mkv|webm|mov|avi)$' } |
+        Select-Object -First 1
+    if ($videoFile) {
+        $status.HasVideo = $true
+        $status.VideoPath = $videoFile.FullName
+    }
+
+    # Check for subtitle file (vtt or srt)
+    $subtitleFile = Get-ChildItem -LiteralPath $ProjectDir -Filter "original.*" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -match '\.(vtt|srt)$' } |
+        Select-Object -First 1
+    if ($subtitleFile) {
+        $status.HasSubtitle = $true
+        $status.SubtitlePath = $subtitleFile.FullName
+    }
+
+    # Check for bilingual.ass
+    $bilingualPath = Join-Path $ProjectDir "bilingual.ass"
+    if (Test-Path -LiteralPath $bilingualPath) {
+        $status.HasBilingual = $true
+        $status.BilingualPath = $bilingualPath
+    }
+
+    # Check for final MKV in output directory
+    $projectName = Split-Path -Leaf $ProjectDir
+    $finalMkvPath = Join-Path $OutputDir "$projectName.mkv"
+    if (Test-Path -LiteralPath $finalMkvPath) {
+        $status.HasFinalMkv = $true
+        $status.FinalMkvPath = $finalMkvPath
+    }
+
+    # Determine next stage
+    if (-not $status.HasVideo -or -not $status.HasSubtitle) {
+        $status.NextStage = "download"
+    }
+    elseif (-not $status.HasBilingual) {
+        $status.NextStage = "translate"
+    }
+    elseif (-not $status.HasFinalMkv) {
+        $status.NextStage = "mux"
+    }
+    else {
+        $status.NextStage = "complete"
+    }
+
+    return $status
+}
+
+# Resume workflow from last incomplete stage
+function Resume-Workflow {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ProjectDir,
+        [string]$Url = "",
+        [switch]$GenerateTranscript
+    )
+
+    $status = Get-ProjectStatus -ProjectDir $ProjectDir
+
+    if ($status.NextStage -eq "complete") {
+        Show-Success "Project already complete: $ProjectDir"
+        return @{ Success = $true; Skipped = $true }
+    }
+
+    Show-Info "Resuming from stage: $($status.NextStage)"
+
+    # Determine skip flags based on status
+    $skipDownload = $status.HasVideo -and $status.HasSubtitle
+    $skipTranslate = $status.HasBilingual
+    $skipMux = $status.HasFinalMkv
+
+    # If we need to download but have no URL, we can't proceed
+    if (-not $skipDownload -and -not $Url) {
+        Show-Error "Cannot resume download stage without URL"
+        return @{ Success = $false; Error = "URL required for download" }
+    }
+
+    try {
+        $result = Invoke-FullWorkflow `
+            -InputUrl $Url `
+            -ExistingProjectDir $ProjectDir `
+            -SkipDownload:$skipDownload `
+            -SkipTranslate:$skipTranslate `
+            -SkipMux:$skipMux `
+            -GenerateTranscript:$GenerateTranscript
+
+        return @{ Success = $true; Result = $result }
+    }
+    catch {
+        return @{ Success = $false; Error = $_.Exception.Message }
+    }
+}
+
 #region Full Workflow
 
 # Main workflow function
