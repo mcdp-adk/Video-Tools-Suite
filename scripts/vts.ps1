@@ -330,8 +330,7 @@ function Invoke-BatchDownloadMenu {
     }
 
     Show-Info "Ready to process $($urls.Count) videos"
-    Write-Host "Press Enter to start or Ctrl+C to cancel..."
-    Read-Host
+    Wait-WithCountdown -Seconds 20
 
     # Run batch workflow
     $result = Invoke-BatchWorkflow -Urls $urls

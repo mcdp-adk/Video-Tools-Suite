@@ -100,6 +100,43 @@ function Show-Hint {
 
 #region Input Utilities
 
+# Wait with countdown, auto-start after timeout or immediate start on Enter
+# Returns $true if started (timeout or Enter), $false if cancelled (Ctrl+C handled by caller)
+function Wait-WithCountdown {
+    param(
+        [int]$Seconds = 20,
+        [string]$Message = "Starting in {0} seconds... (Press Enter to start now, Ctrl+C to cancel)"
+    )
+
+    for ($i = $Seconds; $i -gt 0; $i--) {
+        $displayMsg = $Message -f $i
+        Write-Host "`r$displayMsg    " -NoNewline -ForegroundColor Yellow
+
+        # Check for key press (non-blocking) - may fail in non-interactive mode
+        $waited = 0
+        while ($waited -lt 1000) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    if ($key.Key -eq 'Enter') {
+                        Write-Host "`r$(' ' * ($displayMsg.Length + 4))" -NoNewline
+                        Write-Host "`rStarting now..." -ForegroundColor Green
+                        return $true
+                    }
+                }
+            } catch {
+                # Non-interactive mode - just wait without key check
+            }
+            Start-Sleep -Milliseconds 100
+            $waited += 100
+        }
+    }
+
+    Write-Host "`r$(' ' * 80)" -NoNewline
+    Write-Host "`rCountdown complete, starting..." -ForegroundColor Green
+    return $true
+}
+
 # Read user input with optional file validation
 function Read-UserInput {
     param(
