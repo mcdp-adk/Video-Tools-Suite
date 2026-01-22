@@ -1014,6 +1014,9 @@ Respond ONLY with the JSON array, no explanations.
                     $jsonContent = $Matches[0]
                 }
                 $jsonContent = $jsonContent.Trim()
+                # Remove trailing punctuation after JSON (like "}." or "},")
+                $jsonContent = $jsonContent -replace '\}[\s]*[.,;:!?]+\s*$', '}'
+                $jsonContent = $jsonContent -replace '\][\s]*[.,;:!?]+\s*$', ']'
 
                 $translations = $jsonContent | ConvertFrom-Json
 
