@@ -240,7 +240,7 @@ function Invoke-FullWorkflowMenu {
         # Offer retry if we have project info
         if ($projectDir -or $url) {
             Write-Host ""
-            $retry = Read-Host "Retry? (y/n)"
+            $retry = Read-Host "Retry? (Y/N)"
             if ($retry -eq 'y') {
                 if ($projectDir) {
                     # Smart retry from last stage
@@ -337,7 +337,7 @@ function Invoke-BatchDownloadMenu {
     # Offer retry if there are failures
     while ($result.Failed.Count -gt 0) {
         Write-Host ""
-        $retry = Read-Host "Retry failed items? (y/n)"
+        $retry = Read-Host "Retry failed items? (Y/N)"
         if ($retry -eq 'y') {
             $result = Invoke-BatchRetry -FailedItems $result.Failed
         }
