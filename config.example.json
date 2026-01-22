@@ -2,11 +2,11 @@
   "FirstRun": true,
   "OutputDir": "./output",
   "CookieFile": "",
+  "TargetLanguage": "zh-Hans",
+  "GenerateTranscriptInWorkflow": false,
+  "BatchParallelDownloads": 3,
   "AiProvider": "openai",
   "AiBaseUrl": "https://api.openai.com/v1",
   "AiApiKey": "",
-  "AiModel": "gpt-4o-mini",
-  "TargetLanguage": "zh-Hans",
-  "GenerateTranscriptInWorkflow": false,
-  "BatchParallelDownloads": 3
+  "AiModel": "gpt-4o-mini"
 }

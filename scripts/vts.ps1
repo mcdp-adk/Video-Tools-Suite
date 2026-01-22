@@ -257,6 +257,7 @@ function Invoke-BatchDownloadMenu {
                 return
             }
 
+            Write-Host ""
             Show-Step "Extracting video URLs from playlist..."
             try {
                 $urls = Get-PlaylistVideoUrls -PlaylistUrl $playlistUrl
