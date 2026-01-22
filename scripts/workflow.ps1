@@ -253,6 +253,7 @@ function Invoke-FullWorkflow {
 
     #region Step 1.5: Generate Transcript (Optional)
     if ($GenerateTranscript -and $subtitlePath) {
+        Set-VtsWindowTitle -Phase Transcript -Status "Generating transcript..."
         Show-Step "[Step 1.5/3] Generating transcript..."
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
