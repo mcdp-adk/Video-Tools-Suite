@@ -201,7 +201,6 @@ if ($MyInvocation.InvocationName -ne '.') {
             Write-Host "Video:    $($videoFile.Name)" -ForegroundColor White
             Write-Host "Subtitle: $(Split-Path -Leaf $cliSub)" -ForegroundColor White
             Write-Host "================================================" -ForegroundColor Cyan
-            Write-Host ""
             Show-Step "Processing..."
             $result = Invoke-SubtitleMuxer -VideoPath $cliVideo -SubtitlePath $cliSub
             Write-Host ""

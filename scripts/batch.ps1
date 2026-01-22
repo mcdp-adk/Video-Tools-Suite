@@ -456,7 +456,6 @@ function Invoke-BatchRetry {
         }
     }
 
-    Write-Host ""
     Show-Info "Retry complete: $successCount succeeded, $failCount failed"
 
     $stillFailed = @($results | Where-Object { -not $_.Success })

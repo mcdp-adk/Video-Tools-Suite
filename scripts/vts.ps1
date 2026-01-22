@@ -289,6 +289,7 @@ function Invoke-BatchDownloadMenu {
             try {
                 $urls = Get-PlaylistVideoUrls -PlaylistUrl $playlistUrl
                 Show-Success "Found $($urls.Count) videos"
+                Write-Host ""
             }
             catch {
                 Show-Error "Failed to extract playlist: $_"
@@ -320,7 +321,7 @@ function Invoke-BatchDownloadMenu {
     }
 
     # Preview video titles
-    Show-Step "Fetching video titles..."
+    Show-Step -NoBlankBefore "Fetching video titles..."
     $previews = @()
     foreach ($url in $urls) {
         $title = Get-VideoTitle -Url $url
@@ -329,7 +330,7 @@ function Invoke-BatchDownloadMenu {
     }
 
     Show-Info "Ready to process $($urls.Count) videos"
-    Wait-WithCountdown -Seconds 20
+    Wait-WithCountdown -Seconds 20 | Out-Null
 
     # Run batch workflow
     $result = Invoke-BatchWorkflow -Urls $urls
