@@ -277,9 +277,14 @@ function Invoke-BatchWorkflow {
     Write-Host ""
     #endregion
 
+    # Determine total phases for display
+    $totalPhases = if ($script:GenerateTranscriptInWorkflow) { 3 } else { 2 }
+    $currentPhase = 1
+
     #region Phase 2: Transcript (optional, sequential)
     if ($script:GenerateTranscriptInWorkflow) {
-        Write-Host "  [Phase 2/3] Generating transcripts" -ForegroundColor Yellow
+        $currentPhase++
+        Write-Host "  [Phase $currentPhase/$totalPhases] Generating transcripts" -ForegroundColor Yellow
 
         $transcriptCount = 0
         foreach ($item in $successfulDownloads) {
@@ -301,9 +306,10 @@ function Invoke-BatchWorkflow {
     }
     #endregion
 
-    #region Phase 3: Translate + Mux (sequential)
+    #region Phase 2 or 3: Translate + Mux (sequential)
     if (-not $SkipTranslate) {
-        Write-Host "  [Phase 3/3] Translating and muxing" -ForegroundColor Yellow
+        $currentPhase++
+        Write-Host "  [Phase $currentPhase/$totalPhases] Translating and muxing" -ForegroundColor Yellow
 
         $processCount = 0
         foreach ($item in $successfulDownloads) {
@@ -328,7 +334,9 @@ function Invoke-BatchWorkflow {
                 # Mux
                 if (-not $SkipMux -and $item.VideoPath) {
                     Set-VtsWindowTitle -Phase Mux -Status "Mux [$processCount/$($successfulDownloads.Count)]"
-                    $outputMkv = Join-Path $script:BatchOutputDir "$($item.VideoId).mkv"
+                    # Use project folder name as MKV filename (e.g. [VideoId]Title.mkv)
+                    $projectName = Split-Path -Leaf $item.ProjectDir
+                    $outputMkv = Join-Path $script:BatchOutputDir "$projectName.mkv"
                     Invoke-SubtitleMuxer -VideoPath $item.VideoPath -SubtitlePath $bilingualPath -OutputPath $outputMkv -Quiet | Out-Null
                 }
 

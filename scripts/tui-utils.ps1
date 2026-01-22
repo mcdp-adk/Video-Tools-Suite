@@ -43,9 +43,9 @@ function Restore-WindowTitle {
 $script:StatusIcon = @{
     Waiting = [char]::ConvertFromUtf32(0x23F8)
     InProgress = [char]::ConvertFromUtf32(0x23F3)
-    Done = [char]::ConvertFromUtf32(0x2713)
-    Failed = [char]::ConvertFromUtf32(0x2717)
-    Skipped = [char]::ConvertFromUtf32(0x2298)
+    Done = [char]::ConvertFromUtf32(0x2705)
+    Failed = [char]::ConvertFromUtf32(0x274C)
+    Skipped = [char]::ConvertFromUtf32(0x23ED)
 }
 
 # Get status icon by name

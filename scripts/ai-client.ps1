@@ -923,7 +923,8 @@ function Invoke-SubtitleTranslate {
         [string]$TargetLanguage = "Chinese (Simplified)",
         [hashtable]$Glossary = @{},
         [int]$BatchSize = 20,
-        [int]$ContextSize = 3
+        [int]$ContextSize = 3,
+        [switch]$Quiet
     )
 
     # Build glossary instruction
@@ -994,7 +995,7 @@ Respond ONLY with the JSON array, no explanations.
             $userPrompt = "${contextSection}Translate these subtitles:`n" + ($batchEntries | ConvertTo-Json -Depth 5)
 
             try {
-                Show-Detail "  Translating batch $($batchIndex + 1)/$totalBatches..."
+                if (-not $Quiet) { Show-Detail "  Translating batch $($batchIndex + 1)/$totalBatches..." }
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.3
 
@@ -1061,7 +1062,8 @@ function Invoke-GlobalProofread {
         [Parameter(Mandatory=$true)]
         [array]$BilingualEntries,
         [string]$TargetLanguage = "Chinese (Simplified)",
-        [int]$BatchSize = 50
+        [int]$BatchSize = 50,
+        [switch]$Quiet
     )
 
     if ($BilingualEntries.Count -eq 0) {
@@ -1116,7 +1118,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
             $userPrompt = "Proofread these translations (batch $($batchIndex + 1)/$totalBatches):`n" + ($batchInput | ConvertTo-Json -Depth 5)
 
             try {
-                Show-Detail "  Proofreading batch $($batchIndex + 1)/$totalBatches..."
+                if (-not $Quiet) { Show-Detail "  Proofreading batch $($batchIndex + 1)/$totalBatches..." }
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
 
