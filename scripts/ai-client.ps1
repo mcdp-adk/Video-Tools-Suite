@@ -582,11 +582,17 @@ function Invoke-CueBasedSegmentation {
 
     $allSegments = @()
     $globalWordOffset = 0
+    $totalBatches = [math]::Ceiling($Cues.Count / $CuesPerBatch)
+    $batchIndex = 0
 
     # Process cues in batches
     for ($batchStart = 0; $batchStart -lt $Cues.Count; $batchStart += $CuesPerBatch) {
+        $batchIndex++
         $batchEnd = [Math]::Min($batchStart + $CuesPerBatch - 1, $Cues.Count - 1)
         $batchCues = @($Cues[$batchStart..$batchEnd])
+
+        # Update window title with progress
+        Set-VtsWindowTitle -Phase Transcript -Status "Processing batch $batchIndex/$totalBatches..."
 
         # Collect words for this batch
         $batchWords = @()
