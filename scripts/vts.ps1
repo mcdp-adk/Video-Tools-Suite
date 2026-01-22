@@ -153,7 +153,7 @@ function Get-MenuChoice {
             return $choice
         }
 
-        Write-Host "Invalid choice! Please enter A, B, 1-4, S or Q" -ForegroundColor Red
+        Show-Error "Invalid choice! Please enter A, B, 1-4, S or Q"
         Write-Host ""
     } while ($true)
 }
@@ -171,16 +171,6 @@ function Show-Header {
     Write-Host ""
 }
 
-function Show-Success {
-    param([string]$Message)
-    Write-Host "[SUCCESS] $Message" -ForegroundColor Green
-}
-
-function Show-Error {
-    param([string]$Message)
-    Write-Host "[ERROR] $Message" -ForegroundColor Red
-}
-
 function Pause-Menu {
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
@@ -189,11 +179,11 @@ function Pause-Menu {
 
 function Show-UrlFormats {
     Write-Host "Supports 1800+ sites via yt-dlp" -ForegroundColor Cyan
-    Write-Host "Examples:" -ForegroundColor Gray
-    Write-Host "  - https://www.youtube.com/watch?v=XXXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  - https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  - https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
-    Write-Host "  - XXXXXXXXXXX (YouTube video ID)" -ForegroundColor Gray
+    Show-Hint "Examples:"
+    Show-Hint "  - https://www.youtube.com/watch?v=XXXXXXXXXXX"
+    Show-Hint "  - https://www.youtube.com/live/XXXXXXXXXXX"
+    Show-Hint "  - https://www.bilibili.com/video/BVXXXXXXXXX"
+    Show-Hint "  - XXXXXXXXXXX (YouTube video ID)"
     Write-Host ""
 }
 
@@ -251,10 +241,10 @@ function Invoke-BatchDownloadMenu {
                 return
             }
 
-            Write-Host "Extracting video URLs from playlist..." -ForegroundColor Yellow
+            Show-Step "Extracting video URLs from playlist..."
             try {
                 $urls = Get-PlaylistVideoUrls -PlaylistUrl $playlistUrl
-                Write-Host "Found $($urls.Count) videos" -ForegroundColor Green
+                Show-Success "Found $($urls.Count) videos"
             }
             catch {
                 Show-Error "Failed to extract playlist: $_"
@@ -287,7 +277,7 @@ function Invoke-BatchDownloadMenu {
 
     # Preview video titles
     Write-Host ""
-    Write-Host "Fetching video titles..." -ForegroundColor Yellow
+    Show-Step "Fetching video titles..."
     $previews = @()
     foreach ($url in $urls) {
         $title = Get-VideoTitle -Url $url
@@ -296,7 +286,7 @@ function Invoke-BatchDownloadMenu {
     }
 
     Write-Host ""
-    Write-Host "Ready to process $($urls.Count) videos" -ForegroundColor Yellow
+    Show-Info "Ready to process $($urls.Count) videos"
     Write-Host "Press Enter to start or Ctrl+C to cancel..."
     Read-Host
 
@@ -334,7 +324,7 @@ function Invoke-YouTubeDownloadMenu {
         Write-Host ""
         Write-Host "Creating project..." -ForegroundColor Cyan
         $project = New-VideoProjectDir -Url $url
-        Write-Host "  Project: $($project.ProjectName)" -ForegroundColor Gray
+        Show-Detail "  Project: $($project.ProjectName)"
 
         Write-Host ""
         $videoPath = Invoke-VideoDownload -Url $url -ProjectDir $project.ProjectDir
@@ -342,11 +332,11 @@ function Invoke-YouTubeDownloadMenu {
 
         Write-Host ""
         Show-Success "Download complete!"
-        Write-Host "  Project folder: $($project.ProjectDir)" -ForegroundColor Gray
+        Show-Detail "  Project folder: $($project.ProjectDir)"
         if ($videoPath) {
-            Write-Host "  Video: $(Split-Path -Leaf $videoPath)" -ForegroundColor Gray
+            Show-Detail "  Video: $(Split-Path -Leaf $videoPath)"
         }
-        Write-Host "  Subtitles: $subCount files" -ForegroundColor Gray
+        Show-Detail "  Subtitles: $subCount files"
     }
     catch {
         Show-Error $_.Exception.Message
@@ -373,7 +363,7 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Write-Host ""
         Write-Host "Creating project..." -ForegroundColor Cyan
         $project = New-VideoProjectDir -Url $url
-        Write-Host "  Project: $($project.ProjectName)" -ForegroundColor Gray
+        Show-Detail "  Project: $($project.ProjectName)"
 
         Write-Host ""
         $subCount = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
@@ -381,8 +371,8 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Write-Host ""
         if ($subCount -gt 0) {
             Show-Success "Subtitles downloaded!"
-            Write-Host "  Project folder: $($project.ProjectDir)" -ForegroundColor Gray
-            Write-Host "  Subtitle files: $subCount" -ForegroundColor Gray
+            Show-Detail "  Project folder: $($project.ProjectDir)"
+            Show-Detail "  Subtitle files: $subCount"
         } else {
             Show-Error "No subtitles available for this video"
         }
@@ -413,7 +403,7 @@ function Invoke-TranscriptMenu {
             return
         }
 
-        Write-Host "Generating transcript..." -ForegroundColor Yellow
+        Show-Step "Generating transcript..."
         $result = Invoke-TranscriptGenerator -InputPath $file -Quiet
         Show-Success "Transcript saved to: $result"
     }
@@ -446,13 +436,13 @@ function Invoke-TranslateMenu {
         }
 
         Write-Host ""
-        Write-Host "Translating..." -ForegroundColor Yellow
+        Show-Step "Translating..."
         $result = Invoke-SubtitleTranslator -InputPath $file -Quiet
 
         Write-Host ""
         Show-Success "Translation complete!"
-        Write-Host "  Output: $($result.OutputPath)" -ForegroundColor Gray
-        Write-Host "  Entries: $($result.EntryCount)" -ForegroundColor Gray
+        Show-Detail "  Output: $($result.OutputPath)"
+        Show-Detail "  Entries: $($result.EntryCount)"
     }
     catch {
         Show-Error $_.Exception.Message
@@ -481,9 +471,9 @@ function Invoke-SettingsMenu {
         Write-Host "  [3] API Key:            " -NoNewline -ForegroundColor Gray
         if ($script:Config.AiApiKey) {
             $maskedKey = $script:Config.AiApiKey.Substring(0, [Math]::Min(7, $script:Config.AiApiKey.Length)) + "****"
-            Write-Host $maskedKey -ForegroundColor Green
+            Show-Success $maskedKey
         } else {
-            Write-Host "(not set)" -ForegroundColor Yellow
+            Show-Warning "(not set)"
         }
         Write-Host "  [4] Model:              " -NoNewline -ForegroundColor Gray
         Write-Host "$($script:Config.AiModel)" -ForegroundColor White
@@ -497,16 +487,16 @@ function Invoke-SettingsMenu {
         Write-Host "  --- Other ---" -ForegroundColor DarkGray
         Write-Host "  [6] Cookie File:        " -NoNewline -ForegroundColor Gray
         if ($script:Config.CookieFile -and (Test-Path $script:Config.CookieFile)) {
-            Write-Host $script:Config.CookieFile -ForegroundColor Green
+            Show-Success $script:Config.CookieFile
         } elseif ($script:Config.CookieFile) {
-            Write-Host "$($script:Config.CookieFile) (not found)" -ForegroundColor Yellow
+            Show-Warning "$($script:Config.CookieFile) (not found)"
         } else {
             Write-Host "(not set)" -ForegroundColor DarkGray
         }
         Write-Host "  [7] Generate Transcript: " -NoNewline -ForegroundColor Gray
         Write-Host $(if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }) -ForegroundColor White
-        Write-Host "  [8] Glossaries..." -ForegroundColor Gray
-        Write-Host "  [R] Re-run Setup Wizard" -ForegroundColor Gray
+        Show-Hint "  [8] Glossaries..."
+        Show-Hint "  [R] Re-run Setup Wizard"
         Write-Host ""
         Write-Host "  [B] Back" -ForegroundColor DarkGray
         Write-Host ""
@@ -522,7 +512,7 @@ function Invoke-SettingsMenu {
                     $script:Config.OutputDir = $newPath
                     Apply-ConfigToModules
                     Export-Config
-                    Write-Host "Output directory updated" -ForegroundColor Green
+                    Show-Success "Output directory updated"
                     Start-Sleep -Seconds 1
                 }
             }
@@ -556,7 +546,7 @@ function Invoke-SettingsMenu {
                 }
                 Apply-ConfigToModules
                 Export-Config
-                Write-Host "Provider updated" -ForegroundColor Green
+                Show-Success "Provider updated"
                 Start-Sleep -Seconds 1
             }
             '3' {
@@ -565,7 +555,7 @@ function Invoke-SettingsMenu {
                     $script:Config.AiApiKey = $newKey
                     Apply-ConfigToModules
                     Export-Config
-                    Write-Host "API key updated" -ForegroundColor Green
+                    Show-Success "API key updated"
                     Start-Sleep -Seconds 1
                 }
             }
@@ -575,7 +565,7 @@ function Invoke-SettingsMenu {
                     $script:Config.AiModel = $newModel
                     Apply-ConfigToModules
                     Export-Config
-                    Write-Host "Model updated" -ForegroundColor Green
+                    Show-Success "Model updated"
                     Start-Sleep -Seconds 1
                 }
             }
@@ -603,7 +593,7 @@ function Invoke-SettingsMenu {
                 }
                 Apply-ConfigToModules
                 Export-Config
-                Write-Host "Target language updated" -ForegroundColor Green
+                Show-Success "Target language updated"
                 Start-Sleep -Seconds 1
             }
             '6' {
@@ -613,9 +603,9 @@ function Invoke-SettingsMenu {
                     Apply-ConfigToModules
                     Export-Config
                     if (Test-Path $newPath) {
-                        Write-Host "Cookie file path updated" -ForegroundColor Green
+                        Show-Success "Cookie file path updated"
                     } else {
-                        Write-Host "Cookie file path saved (file not found yet)" -ForegroundColor Yellow
+                        Show-Warning "Cookie file path saved (file not found yet)"
                     }
                     Start-Sleep -Seconds 1
                 }
@@ -623,7 +613,7 @@ function Invoke-SettingsMenu {
             '7' {
                 $script:Config.GenerateTranscriptInWorkflow = -not $script:Config.GenerateTranscriptInWorkflow
                 $status = if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }
-                Write-Host "Generate transcript in workflow: $status" -ForegroundColor Green
+                Show-Success "Generate transcript in workflow: $status"
                 Export-Config
                 Start-Sleep -Seconds 1
             }
@@ -673,8 +663,8 @@ function Start-MainMenu {
             'Q' {
                 Clear-Host
                 Write-Host ""
-                Write-Host "Thank you for using Video Tools Suite!" -ForegroundColor Green
-                Write-Host "Goodbye!" -ForegroundColor Gray
+                Show-Success "Thank you for using Video Tools Suite!"
+                Show-Hint "Goodbye!"
                 Write-Host ""
                 $running = $false
             }

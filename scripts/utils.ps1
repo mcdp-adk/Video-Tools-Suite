@@ -52,10 +52,28 @@ function Show-Warning {
     Write-ColoredMessage -Message $Message -Color Yellow
 }
 
-# Display info message (cyan)
+# Display info message (cyan) - progress, loading, processing
 function Show-Info {
     param([string]$Message)
     Write-ColoredMessage -Message $Message -Color Cyan
+}
+
+# Display step indicator (magenta) - "[Step X/Y] ..." progress steps
+function Show-Step {
+    param([string]$Message)
+    Write-ColoredMessage -Message $Message -Color Magenta
+}
+
+# Display detail message (gray) - secondary info, key-value pairs
+function Show-Detail {
+    param([string]$Message)
+    Write-ColoredMessage -Message $Message -Color Gray
+}
+
+# Display hint message (dark gray) - descriptions, help text, examples
+function Show-Hint {
+    param([string]$Message)
+    Write-ColoredMessage -Message $Message -Color DarkGray
 }
 
 #endregion

@@ -1,3 +1,8 @@
+# Import utilities if not already loaded
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 # Configuration
 $script:ProcessedOutputDir = "$PSScriptRoot\..\output"
 
@@ -52,16 +57,16 @@ if ($MyInvocation.InvocationName -ne '.') {
     $cliPath = if ($args.Count -ge 1) { $args[0] } else { $null }
     if ($cliPath) {
         try {
-            Write-Host "Processing: $(Split-Path -Leaf $cliPath)" -ForegroundColor Cyan
+            Show-Info "Processing: $(Split-Path -Leaf $cliPath)"
             $result = Invoke-TextProcessor -InputPath $cliPath
-            Write-Host "Success! Output:" -ForegroundColor Green
-            Write-Host $result -ForegroundColor Gray
+            Show-Success "Output:"
+            Show-Detail $result
         } catch {
-            Write-Host "Error: $_" -ForegroundColor Red
+            Show-Error "Error: $_"
             exit 1
         }
     } else {
-        Write-Host "Usage: process.bat <input_file>" -ForegroundColor Yellow
+        Show-Warning "Usage: process.bat <input_file>"
         exit 1
     }
 }

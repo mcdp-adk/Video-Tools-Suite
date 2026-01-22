@@ -1,6 +1,11 @@
 # Glossary management module for terminology control in translations
 # Glossaries are stored as JSON files in the glossaries/ directory
 
+# Import utilities
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 # Configuration
 $script:GlossaryDir = "$PSScriptRoot\..\glossaries"
 
@@ -270,7 +275,7 @@ function Show-GlossaryMenu {
                 Edit-GlossaryInteractive -GlossaryPath $glossaries[$idx].Path
             }
             else {
-                Write-Host "Invalid selection" -ForegroundColor Red
+                Show-Error "Invalid selection"
                 Start-Sleep -Seconds 1
             }
         }
@@ -282,7 +287,7 @@ function Invoke-NewGlossaryPrompt {
     Write-Host ""
     $name = Read-Host "Enter glossary name"
     if (-not $name) {
-        Write-Host "Cancelled" -ForegroundColor Yellow
+        Show-Warning "Cancelled"
         Start-Sleep -Seconds 1
         return
     }
@@ -291,11 +296,11 @@ function Invoke-NewGlossaryPrompt {
 
     try {
         $path = New-Glossary -Name $name -Description $description
-        Write-Host "Created: $path" -ForegroundColor Green
+        Show-Success "Created: $path"
         Start-Sleep -Seconds 1
     }
     catch {
-        Write-Host "Error: $_" -ForegroundColor Red
+        Show-Error "Error: $_"
         Start-Sleep -Seconds 2
     }
 }
@@ -314,7 +319,7 @@ function Edit-GlossaryInteractive {
             $glossary = Import-Glossary -Path $GlossaryPath
         }
         catch {
-            Write-Host "Error loading glossary: $_" -ForegroundColor Red
+            Show-Error "Error loading glossary: $_"
             Start-Sleep -Seconds 2
             return
         }
@@ -368,7 +373,7 @@ function Edit-GlossaryInteractive {
                     $target = Read-Host "Enter translation"
                     if ($target) {
                         Set-GlossaryTerm -GlossaryPath $GlossaryPath -SourceTerm $source -TargetTerm $target
-                        Write-Host "Term added/updated" -ForegroundColor Green
+                        Show-Success "Term added/updated"
                         Start-Sleep -Seconds 1
                     }
                 }
@@ -378,10 +383,10 @@ function Edit-GlossaryInteractive {
                 $source = Read-Host "Enter term to remove"
                 if ($source) {
                     if (Remove-GlossaryTerm -GlossaryPath $GlossaryPath -SourceTerm $source) {
-                        Write-Host "Term removed" -ForegroundColor Green
+                        Show-Success "Term removed"
                     }
                     else {
-                        Write-Host "Term not found" -ForegroundColor Yellow
+                        Show-Warning "Term not found"
                     }
                     Start-Sleep -Seconds 1
                 }
@@ -391,7 +396,7 @@ function Edit-GlossaryInteractive {
                 $confirm = Read-Host "Are you sure you want to delete this glossary? (yes/no)"
                 if ($confirm -eq 'yes') {
                     Remove-Glossary -GlossaryPath $GlossaryPath
-                    Write-Host "Glossary deleted" -ForegroundColor Green
+                    Show-Success "Glossary deleted"
                     Start-Sleep -Seconds 1
                     return
                 }

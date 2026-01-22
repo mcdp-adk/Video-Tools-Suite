@@ -2,6 +2,9 @@
 # Guides users through initial configuration
 
 # Dot source dependencies if not already loaded
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
 if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\lang-config.ps1"
 }
@@ -28,7 +31,7 @@ function Start-SetupWizard {
     Write-Host "                Welcome to Video Tools Suite!" -ForegroundColor Yellow
     Write-Host ("=" * 60) -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  Let's set up a few things before we start." -ForegroundColor Gray
+    Show-Detail "  Let's set up a few things before we start."
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
@@ -45,54 +48,54 @@ function Start-SetupWizard {
     }
 
     #region Step 1: Output Directory
-    Write-Host "Step 1/6: Output Directory" -ForegroundColor Yellow
-    Write-Host "  Where should files be saved?" -ForegroundColor Gray
+    Show-Step "Step 1/6: Output Directory"
+    Show-Detail "  Where should files be saved?"
     Write-Host ""
     $outputDir = Read-Host "  [./output, press Enter for default]"
     if ($outputDir) {
         $config.OutputDir = $outputDir
     }
-    Write-Host "  Output: $($config.OutputDir)" -ForegroundColor Green
+    Show-Success "  Output: $($config.OutputDir)"
     Write-Host ""
     #endregion
 
     #region Step 2: Cookie File (Required)
-    Write-Host "Step 2/6: Cookie File" -ForegroundColor Yellow
+    Show-Step "Step 2/6: Cookie File"
     Write-Host ""
-    Write-Host "  For downloading videos (especially age-restricted or member-only)," -ForegroundColor Gray
-    Write-Host "  you need to provide a cookie file exported from your browser." -ForegroundColor Gray
+    Show-Detail "  For downloading videos (especially age-restricted or member-only),"
+    Show-Detail "  you need to provide a cookie file exported from your browser."
     Write-Host ""
 
     do {
         $cookiePath = Read-Host "  Enter cookie file path"
         if (-not $cookiePath) {
-            Write-Host "  Cookie file is required. Please enter a valid path." -ForegroundColor Red
+            Show-Error "  Cookie file is required. Please enter a valid path."
         } elseif (-not (Test-Path $cookiePath)) {
-            Write-Host "  File not found: $cookiePath" -ForegroundColor Red
-            Write-Host "  Please check the path and try again." -ForegroundColor Yellow
+            Show-Error "  File not found: $cookiePath"
+            Show-Warning "  Please check the path and try again."
             $cookiePath = ""
         }
     } while (-not $cookiePath)
 
     $config.CookieFile = $cookiePath
-    Write-Host "  Cookie file set: $cookiePath" -ForegroundColor Green
+    Show-Success "  Cookie file set: $cookiePath"
     Write-Host ""
     #endregion
 
     #region Step 3: AI Provider
-    Write-Host "Step 3/6: AI Provider" -ForegroundColor Yellow
+    Show-Step "Step 3/6: AI Provider"
     Write-Host ""
     Write-Host "  [1] OpenAI (Recommended)" -ForegroundColor White
-    Write-Host "      https://api.openai.com/v1" -ForegroundColor DarkGray
+    Show-Hint "      https://api.openai.com/v1"
     Write-Host ""
     Write-Host "  [2] DeepSeek" -ForegroundColor White
-    Write-Host "      https://api.deepseek.com" -ForegroundColor DarkGray
+    Show-Hint "      https://api.deepseek.com"
     Write-Host ""
     Write-Host "  [3] OpenRouter" -ForegroundColor White
-    Write-Host "      https://openrouter.ai/api/v1" -ForegroundColor DarkGray
+    Show-Hint "      https://openrouter.ai/api/v1"
     Write-Host ""
     Write-Host "  [4] Custom" -ForegroundColor White
-    Write-Host "      Enter your own API endpoint" -ForegroundColor DarkGray
+    Show-Hint "      Enter your own API endpoint"
     Write-Host ""
 
     do {
@@ -104,31 +107,31 @@ function Start-SetupWizard {
         '1' {
             $config.AiProvider = "openai"
             $config.AiBaseUrl = "https://api.openai.com/v1"
-            Write-Host "  OpenAI selected" -ForegroundColor Green
+            Show-Success "  OpenAI selected"
         }
         '2' {
             $config.AiProvider = "deepseek"
             $config.AiBaseUrl = "https://api.deepseek.com"
-            Write-Host "  DeepSeek selected" -ForegroundColor Green
+            Show-Success "  DeepSeek selected"
         }
         '3' {
             $config.AiProvider = "openrouter"
             $config.AiBaseUrl = "https://openrouter.ai/api/v1"
-            Write-Host "  OpenRouter selected" -ForegroundColor Green
+            Show-Success "  OpenRouter selected"
         }
         '4' {
             $config.AiProvider = "custom"
             Write-Host ""
             $customUrl = Read-Host "  Enter API base URL"
             $config.AiBaseUrl = $customUrl
-            Write-Host "  Custom provider selected" -ForegroundColor Green
+            Show-Success "  Custom provider selected"
         }
     }
     Write-Host ""
     #endregion
 
     #region Step 4: Model
-    Write-Host "Step 4/6: Model" -ForegroundColor Yellow
+    Show-Step "Step 4/6: Model"
     Write-Host ""
 
     # Define model options per provider
@@ -155,13 +158,13 @@ function Start-SetupWizard {
             $label = if ($i -eq 0) { "$model (Recommended)" } else { $model }
             Write-Host "  [$($i + 1)] $label" -ForegroundColor White
             if ($modelDescriptions.ContainsKey($model)) {
-                Write-Host "      $($modelDescriptions[$model])" -ForegroundColor DarkGray
+                Show-Hint "      $($modelDescriptions[$model])"
             }
             Write-Host ""
         }
         Write-Host "  [$maxChoice] Custom" -ForegroundColor White
         if ($config.AiProvider -eq 'openrouter') {
-            Write-Host "      Visit openrouter.ai/models for available models" -ForegroundColor DarkGray
+            Show-Hint "      Visit openrouter.ai/models for available models"
         }
         Write-Host ""
 
@@ -180,14 +183,14 @@ function Start-SetupWizard {
         $config.AiModel = Read-Host "  Enter model name"
     }
 
-    Write-Host "  Model: $($config.AiModel)" -ForegroundColor Green
+    Show-Success "  Model: $($config.AiModel)"
     Write-Host ""
     #endregion
 
     #region Step 5: API Key (Required + Connection Test)
-    Write-Host "Step 5/6: API Key" -ForegroundColor Yellow
+    Show-Step "Step 5/6: API Key"
     Write-Host ""
-    Write-Host "  Enter your API key (will be saved locally):" -ForegroundColor Gray
+    Show-Detail "  Enter your API key (will be saved locally):"
     Write-Host ""
 
     $connectionSuccess = $false
@@ -195,16 +198,16 @@ function Start-SetupWizard {
         do {
             $apiKey = Read-Host "  API Key"
             if (-not $apiKey) {
-                Write-Host "  API key is required. Please enter a valid key." -ForegroundColor Red
+                Show-Error "  API key is required. Please enter a valid key."
             }
         } while (-not $apiKey)
 
         $config.AiApiKey = $apiKey
         $maskedKey = $apiKey.Substring(0, [Math]::Min(7, $apiKey.Length)) + "****"
-        Write-Host "  Key entered: $maskedKey" -ForegroundColor Gray
+        Show-Detail "  Key entered: $maskedKey"
 
         # Test connection
-        Write-Host "  Testing connection..." -ForegroundColor Cyan
+        Show-Info "  Testing connection..."
 
         # Temporarily set AI client variables for testing
         $script:AiClient_BaseUrl = $config.AiBaseUrl
@@ -214,11 +217,11 @@ function Start-SetupWizard {
         $testResult = Test-AiConnection
 
         if ($testResult.Success) {
-            Write-Host "  Connection successful!" -ForegroundColor Green
+            Show-Success "  Connection successful!"
             $connectionSuccess = $true
         } else {
-            Write-Host "  Connection failed: $($testResult.Message)" -ForegroundColor Red
-            Write-Host "  Please check your API key and try again." -ForegroundColor Yellow
+            Show-Error "  Connection failed: $($testResult.Message)"
+            Show-Warning "  Please check your API key and try again."
             Write-Host ""
         }
     }
@@ -226,7 +229,7 @@ function Start-SetupWizard {
     #endregion
 
     #region Step 6: Target Language
-    Write-Host "Step 6/6: Target Language" -ForegroundColor Yellow
+    Show-Step "Step 6/6: Target Language"
     Write-Host ""
 
     # Use QuickSelectLanguages from lang-config.ps1
@@ -255,16 +258,16 @@ function Start-SetupWizard {
     }
 
     $langDisplay = Get-LanguageDisplayName -LangCode $config.TargetLanguage
-    Write-Host "  Target: $langDisplay ($($config.TargetLanguage))" -ForegroundColor Green
+    Show-Success "  Target: $langDisplay ($($config.TargetLanguage))"
     Write-Host ""
     #endregion
 
     #region Complete
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "Setup complete!" -ForegroundColor Green
+    Show-Success "Setup complete!"
     Write-Host ""
-    Write-Host "You can change these settings anytime in [S] Settings." -ForegroundColor Gray
+    Show-Detail "You can change these settings anytime in [S] Settings."
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""

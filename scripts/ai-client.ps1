@@ -2,7 +2,7 @@
 # Supports subtitle segmentation, translation, and proofreading
 
 # Dot source dependencies if not already loaded
-if (-not (Get-Command "Show-Warning" -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
 
@@ -377,7 +377,7 @@ function Invoke-SentenceSegmentation {
 
     # Check cache
     if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
-        Write-Host "  Using cached segmentation result" -ForegroundColor Gray
+        Show-Detail "  Using cached segmentation result"
         return $script:SentenceCache[$textHash]
     }
 
@@ -406,7 +406,7 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
     $lastResult = $null
 
     for ($step = 0; $step -lt $MaxSteps; $step++) {
-        Write-Host "  Segmenting text with AI (attempt $($step + 1)/$MaxSteps)..." -ForegroundColor Gray
+        Show-Detail "  Segmenting text with AI (attempt $($step + 1)/$MaxSteps)..."
 
         $response = Invoke-AiCompletionWithHistory -SystemPrompt $systemPrompt -Messages $messages -Temperature 0.1 -MaxTokens 8192
 
@@ -423,7 +423,7 @@ GOOD: "I've given up on women.<br>I'm going to start dating men."
             $sentences = Merge-ShortSentences -Sentences $sentences -MinWords 5
             # Split long sentences (> MaxWords)
             $sentences = Split-LongSentences -Sentences $sentences -MaxWords $MaxWordsEnglish
-            Write-Host "  Split into $($sentences.Count) sentences" -ForegroundColor Green
+            Show-Success "  Split into $($sentences.Count) sentences"
 
             # Store in cache for reuse
             if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
@@ -488,7 +488,7 @@ function Split-LongSegments {
         }
 
         # Segment is very long, need to split
-        Write-Host "    Splitting very long segment ($($words.Count) words)..." -ForegroundColor Yellow
+        Show-Warning "    Splitting very long segment ($($words.Count) words)..."
 
         $currentStart = 0
         $segmentStartIndex = $segment.StartIndex
@@ -592,7 +592,7 @@ function Invoke-CueBasedSegmentation {
 
         if ($batchWords.Count -eq 0) { continue }
 
-        Write-Host "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..." -ForegroundColor Gray
+        Show-Detail "  Processing cues $($batchStart + 1)-$($batchEnd + 1) of $($Cues.Count) ($($batchWords.Count) words)..."
 
         # Get segments for this batch using AI
         $batchSegments = Invoke-BatchSegmentation -Words $batchWords -MaxWordsPerSegment $MaxWordsPerSegment -MinWordsPerSegment $MinWordsPerSegment -MaxAttempts $MaxAttempts
@@ -609,7 +609,7 @@ function Invoke-CueBasedSegmentation {
         $globalWordOffset += $batchWords.Count
     }
 
-    Write-Host "  Total segments: $($allSegments.Count)" -ForegroundColor Green
+    Show-Success "  Total segments: $($allSegments.Count)"
     return $allSegments
 }
 
@@ -746,7 +746,7 @@ function Invoke-WordBasedSegmentation {
     ).Replace("-", "").Substring(0, 16)
 
     if ($script:SentenceCache -and $script:SentenceCache.ContainsKey($textHash)) {
-        Write-Host "  Using cached segmentation result" -ForegroundColor Gray
+        Show-Detail "  Using cached segmentation result"
         return $script:SentenceCache[$textHash]
     }
 
@@ -767,7 +767,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
     $userPrompt = "Insert <br> markers to segment this text:`n$fullText"
 
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        Write-Host "  Segmenting with word-based method (attempt $attempt/$MaxAttempts)..." -ForegroundColor Gray
+        Show-Detail "  Segmenting with word-based method (attempt $attempt/$MaxAttempts)..."
 
         $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.1 -MaxTokens 8192
 
@@ -812,7 +812,7 @@ Example output: "well I think the biggest problem with this club<br>is that we k
             # Post-process: split any segments that exceed MaxWordsPerSegment
             $segments = Split-LongSegments -Segments $segments -MaxWords $MaxWordsPerSegment
 
-            Write-Host "  Split into $($segments.Count) segments" -ForegroundColor Green
+            Show-Success "  Split into $($segments.Count) segments"
 
             # Cache result
             if (-not $script:SentenceCache) { $script:SentenceCache = @{} }
@@ -986,7 +986,7 @@ Respond ONLY with the JSON array, no explanations.
             $userPrompt = "${contextSection}Translate these subtitles:`n" + ($batchEntries | ConvertTo-Json -Depth 5)
 
             try {
-                Write-Host "  Translating batch $($batchIndex + 1)/$totalBatches..." -ForegroundColor Gray
+                Show-Detail "  Translating batch $($batchIndex + 1)/$totalBatches..."
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.3
 
@@ -1108,7 +1108,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
             $userPrompt = "Proofread these translations (batch $($batchIndex + 1)/$totalBatches):`n" + ($batchInput | ConvertTo-Json -Depth 5)
 
             try {
-                Write-Host "  Proofreading batch $($batchIndex + 1)/$totalBatches..." -ForegroundColor Gray
+                Show-Detail "  Proofreading batch $($batchIndex + 1)/$totalBatches..."
 
                 $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
 

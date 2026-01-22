@@ -2,6 +2,9 @@
 # Handles complete pipeline: download -> translate -> mux
 
 # Dot source dependencies if not already loaded
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
 if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\lang-config.ps1"
 }
@@ -64,20 +67,20 @@ function Invoke-FullWorkflow {
     #region Step 1: Download
     if (-not $SkipDownload -and -not $ExistingProjectDir) {
         $Host.UI.RawUI.WindowTitle = "VTS: Step 1/3 - Downloading..."
-        Write-Host "[Step 1/3] Downloading video and subtitles..." -ForegroundColor Yellow
+        Show-Step "[Step 1/3] Downloading video and subtitles..."
 
         # Create project directory using shared function from download.ps1
         $project = New-VideoProjectDir -Url $InputUrl
         $projectDir = $project.ProjectDir
 
-        Write-Host "  Video ID: $($project.VideoId)" -ForegroundColor Gray
-        Write-Host "  Title: $($project.VideoTitle)" -ForegroundColor Gray
+        Show-Detail "  Video ID: $($project.VideoId)"
+        Show-Detail "  Title: $($project.VideoTitle)"
 
         # Download video using shared function
-        Write-Host "  Downloading video..." -ForegroundColor Gray
+        Show-Detail "  Downloading video..."
         $videoPath = Invoke-VideoDownload -Url $InputUrl -ProjectDir $projectDir -Quiet
         if ($videoPath) {
-            Write-Host "  Video: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
+            Show-Success "  Video: $(Split-Path -Leaf $videoPath)"
         }
 
         # Download subtitles using smart selection
@@ -85,19 +88,19 @@ function Invoke-FullWorkflow {
 
         if ($subResult.SkipTranslation) {
             if ($subResult.SubtitleType -eq "embedded") {
-                Write-Host "  Subtitles: Target language already available (skipping translation)" -ForegroundColor Green
+                Show-Success "  Subtitles: Target language already available (skipping translation)"
                 $skipTranslation = $true
             } else {
-                Write-Host "  Subtitles: None available" -ForegroundColor Yellow
+                Show-Warning "  Subtitles: None available"
                 $skipTranslation = $true
             }
         } else {
-            Write-Host "  Subtitles: $($subResult.SubtitleType) ($($subResult.VideoLanguage))" -ForegroundColor Green
+            Show-Success "  Subtitles: $($subResult.SubtitleType) ($($subResult.VideoLanguage))"
             $subtitlePath = $subResult.SubtitleFile
         }
     }
     else {
-        Write-Host "[Step 1/3] Skipping download (using existing files)" -ForegroundColor DarkGray
+        Show-Hint "[Step 1/3] Skipping download (using existing files)"
 
         if ($ExistingProjectDir) {
             $projectDir = $ExistingProjectDir
@@ -118,7 +121,7 @@ function Invoke-FullWorkflow {
         if ($subtitleFiles.Count -gt 0) {
             $manualSub = $subtitleFiles | Where-Object { $_.Name -notmatch '\.auto\.' } | Select-Object -First 1
             $subtitlePath = if ($manualSub) { $manualSub.FullName } else { $subtitleFiles[0].FullName }
-            Write-Host "  Using existing subtitle: $(Split-Path -Leaf $subtitlePath)" -ForegroundColor Gray
+            Show-Detail "  Using existing subtitle: $(Split-Path -Leaf $subtitlePath)"
         }
     }
 
@@ -127,11 +130,11 @@ function Invoke-FullWorkflow {
     #region Step 1.5: Generate Transcript (Optional)
     if ($GenerateTranscript -and $subtitlePath) {
         Write-Host ""
-        Write-Host "[Step 1.5/3] Generating transcript..." -ForegroundColor Yellow
+        Show-Step "[Step 1.5/3] Generating transcript..."
 
         $transcriptPath = Join-Path $projectDir "transcript.txt"
         Invoke-TranscriptGenerator -InputPath $subtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
-        Write-Host "  Transcript: transcript.txt" -ForegroundColor Green
+        Show-Success "  Transcript: transcript.txt"
     }
     #endregion
 
@@ -141,27 +144,27 @@ function Invoke-FullWorkflow {
     if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
         $Host.UI.RawUI.WindowTitle = "VTS: Step 2/3 - Translating..."
         Write-Host ""
-        Write-Host "[Step 2/3] Translating subtitles..." -ForegroundColor Yellow
+        Show-Step "[Step 2/3] Translating subtitles..."
 
         # Check language
         $subtitleData = Import-SubtitleFile -Path $subtitlePath
         $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
-        Write-Host "  Source: $($langCheck.DetectedLanguage)" -ForegroundColor Gray
+        Show-Detail "  Source: $($langCheck.DetectedLanguage)"
 
         $bilingualAssPath = Join-Path $projectDir "bilingual.ass"
 
         $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -Quiet
 
-        Write-Host "  Output: bilingual.ass" -ForegroundColor Green
-        Write-Host "  Entries: $($translateResult.EntryCount)" -ForegroundColor Gray
+        Show-Success "  Output: bilingual.ass"
+        Show-Detail "  Entries: $($translateResult.EntryCount)"
     }
     elseif ($skipTranslation) {
         Write-Host ""
-        Write-Host "[Step 2/3] Skipping translation (target language subtitle available)" -ForegroundColor DarkGray
+        Show-Hint "[Step 2/3] Skipping translation (target language subtitle available)"
     }
     else {
         Write-Host ""
-        Write-Host "[Step 2/3] Skipping translation" -ForegroundColor DarkGray
+        Show-Hint "[Step 2/3] Skipping translation"
 
         # Look for existing bilingual subtitle
         $existingAss = Join-Path $projectDir "bilingual.ass"
@@ -176,7 +179,7 @@ function Invoke-FullWorkflow {
     if (-not $SkipMux -and $videoPath -and $bilingualAssPath) {
         $Host.UI.RawUI.WindowTitle = "VTS: Step 3/3 - Muxing..."
         Write-Host ""
-        Write-Host "[Step 3/3] Muxing subtitle into video..." -ForegroundColor Yellow
+        Show-Step "[Step 3/3] Muxing subtitle into video..."
 
         # Output MKV to parent directory
         $videoId = Split-Path -Leaf $projectDir
@@ -198,27 +201,27 @@ function Invoke-FullWorkflow {
                 Move-Item -LiteralPath $muxResult -Destination $outputMkvPath -Force
             }
 
-            Write-Host "  Output: $(Split-Path -Leaf $outputMkvPath)" -ForegroundColor Green
+            Show-Success "  Output: $(Split-Path -Leaf $outputMkvPath)"
         }
         finally {
             $script:MuxerOutputDir = $originalMuxDir
         }
 
         Write-Host ""
-        Write-Host "[SUCCESS] Workflow completed!" -ForegroundColor Green
-        Write-Host "  Project: $projectDir" -ForegroundColor Gray
-        Write-Host "  Output: $outputMkvPath" -ForegroundColor Gray
+        Show-Success "Workflow completed!"
+        Show-Detail "  Project: $projectDir"
+        Show-Detail "  Output: $outputMkvPath"
     }
     elseif ($skipTranslation -and $videoPath) {
         Write-Host ""
-        Write-Host "[Step 3/3] Skipping mux (no translation needed)" -ForegroundColor DarkGray
+        Show-Hint "[Step 3/3] Skipping mux (no translation needed)"
         Write-Host ""
-        Write-Host "[SUCCESS] Workflow completed!" -ForegroundColor Green
-        Write-Host "  Note: Video already has target language subtitles embedded" -ForegroundColor Gray
+        Show-Success "Workflow completed!"
+        Show-Detail "  Note: Video already has target language subtitles embedded"
     }
     else {
         Write-Host ""
-        Write-Host "[Step 3/3] Skipping mux" -ForegroundColor DarkGray
+        Show-Hint "[Step 3/3] Skipping mux"
     }
 
     #endregion
@@ -247,16 +250,16 @@ if ($MyInvocation.InvocationName -ne '.') {
         }
         catch {
             Write-Host ""
-            Write-Host "Error: $_" -ForegroundColor Red
+            Show-Error $_
             exit 1
         }
     } else {
-        Write-Host "Usage: workflow.bat <url>" -ForegroundColor Yellow
-        Write-Host "Runs complete workflow: download -> translate -> mux" -ForegroundColor Gray
+        Show-Warning "Usage: workflow.bat <url>"
+        Show-Hint "Runs complete workflow: download -> translate -> mux"
         Write-Host ""
-        Write-Host "Examples:" -ForegroundColor Gray
-        Write-Host "  workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
-        Write-Host "  workflow.bat https://www.bilibili.com/video/BV1xx411c7XW" -ForegroundColor Gray
+        Show-Hint "Examples:"
+        Show-Hint "  workflow.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        Show-Hint "  workflow.bat https://www.bilibili.com/video/BV1xx411c7XW"
         exit 1
     }
 }

@@ -1,6 +1,11 @@
 # Batch download module for Video Tools Suite
 # Sequential processing (one video at a time)
 
+# Import utils for Show-* message functions
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 # Process multiple URLs sequentially with full workflow
 function Invoke-BatchWorkflow {
     param(
@@ -13,7 +18,7 @@ function Invoke-BatchWorkflow {
     $completedCount = 0
     $results = @()
 
-    Write-Host "Starting batch processing: $total videos" -ForegroundColor Cyan
+    Show-Info "Starting batch processing: $total videos"
     Write-Host ""
 
     foreach ($url in $Urls) {
@@ -29,17 +34,17 @@ function Invoke-BatchWorkflow {
 
         try {
             $result.Title = Get-VideoTitle -Url $url
-            Write-Host "[$completedCount/$total] Processing: $($result.Title)" -ForegroundColor Yellow
+            Show-Step "[$completedCount/$total] Processing: $($result.Title)"
 
             Invoke-FullWorkflow -InputUrl $url -GenerateTranscript:$script:GenerateTranscriptInWorkflow
             $result.Success = $true
-            Write-Host "[$completedCount/$total] OK: $($result.Title)" -ForegroundColor Green
+            Show-Success "[$completedCount/$total] OK: $($result.Title)"
         }
         catch {
             $result.Error = $_.Exception.Message
             $displayName = if ($result.Title) { $result.Title } else { $url }
-            Write-Host "[$completedCount/$total] FAILED: $displayName" -ForegroundColor Red
-            Write-Host "  Error: $($result.Error)" -ForegroundColor DarkGray
+            Show-Error "[$completedCount/$total] FAILED: $displayName"
+            Show-Hint "  Error: $($result.Error)"
         }
 
         $results += $result
@@ -53,15 +58,15 @@ function Invoke-BatchWorkflow {
     $failedResults = @($results | Where-Object { -not $_.Success })
 
     if ($failedResults.Count -eq 0) {
-        Write-Host "[SUCCESS] Batch complete: $successCount / $total" -ForegroundColor Green
+        Show-Success "[SUCCESS] Batch complete: $successCount / $total"
     } else {
-        Write-Host "[COMPLETE] Success: $successCount / $total, Failed: $($failedResults.Count)" -ForegroundColor Yellow
+        Show-Warning "[COMPLETE] Success: $successCount / $total, Failed: $($failedResults.Count)"
         Write-Host ""
-        Write-Host "Failed items:" -ForegroundColor Red
+        Show-Error "Failed items:"
         foreach ($item in $failedResults) {
             $displayName = if ($item.Title) { $item.Title } else { $item.Url }
-            Write-Host "  - $displayName" -ForegroundColor Red
-            Write-Host "    $($item.Error)" -ForegroundColor DarkGray
+            Show-Error "  - $displayName"
+            Show-Hint "    $($item.Error)"
         }
     }
 

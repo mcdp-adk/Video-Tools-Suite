@@ -2,6 +2,11 @@
 $script:YtdlCookieFile = ""
 $script:YtdlOutputDir = "$PSScriptRoot\..\output"
 
+# Import utilities if not already loaded
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 #region Helper Functions
 
 # Check yt-dlp availability
@@ -282,7 +287,7 @@ function Invoke-VideoDownload {
     $commonArgs = Get-CommonYtDlpArgs
 
     if (-not $Quiet) {
-        Write-Host "Downloading video..." -ForegroundColor Cyan
+        Show-Info "Downloading video..."
     }
 
     $videoArgs = $cookieArgs + $commonArgs + @(
@@ -331,13 +336,13 @@ function Invoke-SubtitleDownload {
 
     # Get subtitle info
     if (-not $Quiet) {
-        Write-Host "  Analyzing subtitles..." -ForegroundColor Cyan
+        Show-Info "  Analyzing subtitles..."
     }
 
     $subInfo = Get-VideoSubtitleInfo -Url $Url -TargetLanguage $TargetLanguage
     if (-not $subInfo.Success) {
         if (-not $Quiet) {
-            Write-Host "    Warning: $($subInfo.Error)" -ForegroundColor Yellow
+            Show-Warning "    Warning: $($subInfo.Error)"
         }
         return @{
             SubtitleFile = $null
@@ -350,13 +355,13 @@ function Invoke-SubtitleDownload {
     $videoLang = $subInfo.VideoLanguage
 
     if (-not $Quiet) {
-        Write-Host "    Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })" -ForegroundColor Gray
+        Show-Detail "    Video language: $(if ($videoLang) { $videoLang } else { 'unknown' })"
     }
 
     # Priority 1: Check if target language manual subtitle exists
     if ($TargetLanguage -and $subInfo.HasTargetLanguageSub) {
         if (-not $Quiet) {
-            Write-Host "    Found target language ($TargetLanguage) manual subtitle - already embedded in video" -ForegroundColor Green
+            Show-Success "    Found target language ($TargetLanguage) manual subtitle - already embedded in video"
         }
         return @{
             SubtitleFile = $null
@@ -369,7 +374,7 @@ function Invoke-SubtitleDownload {
     # Priority 2: Video language manual subtitle
     if ($videoLang -and ($subInfo.ManualSubtitles -contains $videoLang)) {
         if (-not $Quiet) {
-            Write-Host "    Downloading manual subtitle ($videoLang)..." -ForegroundColor Cyan
+            Show-Info "    Downloading manual subtitle ($videoLang)..."
         }
 
         $subArgs = $cookieArgs + $commonArgs + @(
@@ -399,7 +404,7 @@ function Invoke-SubtitleDownload {
     $origKey = "$videoLang-orig"
     if ($videoLang -and ($subInfo.AutoSubtitles -contains $origKey)) {
         if (-not $Quiet) {
-            Write-Host "    Downloading auto-generated subtitle ($origKey)..." -ForegroundColor Cyan
+            Show-Info "    Downloading auto-generated subtitle ($origKey)..."
         }
 
         $subArgs = $cookieArgs + $commonArgs + @(
@@ -427,7 +432,7 @@ function Invoke-SubtitleDownload {
 
     # No suitable subtitle found
     if (-not $Quiet) {
-        Write-Host "    Warning: No suitable subtitle found for this video" -ForegroundColor Yellow
+        Show-Warning "    Warning: No suitable subtitle found for this video"
     }
 
     return @{
@@ -451,41 +456,41 @@ if ($MyInvocation.InvocationName -ne '.') {
             Write-Host "================================================" -ForegroundColor Cyan
             Write-Host "URL: $url" -ForegroundColor White
             Write-Host "================================================" -ForegroundColor Cyan
-            Write-Host "Starting download..." -ForegroundColor Yellow
+            Show-Step "Starting download..."
 
             # Create project folder
             $project = New-VideoProjectDir -Url $cliUrl
-            Write-Host "Project: $($project.ProjectName)" -ForegroundColor Cyan
+            Show-Info "Project: $($project.ProjectName)"
 
             # Download video
             $videoPath = Invoke-VideoDownload -Url $cliUrl -ProjectDir $project.ProjectDir
             if ($videoPath) {
-                Write-Host "Video downloaded: $(Split-Path -Leaf $videoPath)" -ForegroundColor Green
+                Show-Success "Video downloaded: $(Split-Path -Leaf $videoPath)"
             }
 
             # Download subtitles (smart selection)
             $subResult = Invoke-SubtitleDownload -Url $cliUrl -ProjectDir $project.ProjectDir
             if ($subResult.SubtitleFile) {
-                Write-Host "Subtitle downloaded: $(Split-Path -Leaf $subResult.SubtitleFile) ($($subResult.SubtitleType))" -ForegroundColor Green
+                Show-Success "Subtitle downloaded: $(Split-Path -Leaf $subResult.SubtitleFile) ($($subResult.SubtitleType))"
             } elseif ($subResult.SubtitleType -eq "embedded") {
-                Write-Host "Subtitles: Target language already embedded in video" -ForegroundColor Green
+                Show-Success "Subtitles: Target language already embedded in video"
             } else {
-                Write-Host "No subtitles available" -ForegroundColor Yellow
+                Show-Warning "No subtitles available"
             }
 
-            Write-Host "Success! Video downloaded to: $($project.ProjectDir)" -ForegroundColor Green
+            Show-Success "Success! Video downloaded to: $($project.ProjectDir)"
         } catch {
-            Write-Host "Error: $_" -ForegroundColor Red
+            Show-Error "Error: $_"
             exit 1
         }
     } else {
-        Write-Host "Usage: download.bat <url>" -ForegroundColor Yellow
-        Write-Host "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)" -ForegroundColor Cyan
-        Write-Host "Examples:" -ForegroundColor Gray
-        Write-Host "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ" -ForegroundColor Gray
-        Write-Host "  download.bat https://www.youtube.com/live/XXXXXXXXXXX" -ForegroundColor Gray
-        Write-Host "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX" -ForegroundColor Gray
-        Write-Host "  download.bat dQw4w9WgXcQ  (YouTube video ID)" -ForegroundColor Gray
+        Show-Warning "Usage: download.bat <url>"
+        Show-Info "Supports 1800+ sites via yt-dlp (YouTube, Bilibili, Twitter, etc.)"
+        Show-Hint "Examples:"
+        Show-Hint "  download.bat https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        Show-Hint "  download.bat https://www.youtube.com/live/XXXXXXXXXXX"
+        Show-Hint "  download.bat https://www.bilibili.com/video/BVXXXXXXXXX"
+        Show-Hint "  download.bat dQw4w9WgXcQ  (YouTube video ID)"
         exit 1
     }
 }

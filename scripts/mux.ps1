@@ -1,3 +1,8 @@
+# Import utilities
+if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\utils.ps1"
+}
+
 # Configuration
 $script:MuxerOutputDir = "$PSScriptRoot\..\output"
 $script:DefaultSubtitleLang = "chi"
@@ -139,7 +144,7 @@ function Invoke-SubtitleMuxer {
     $existingSubtitles = @(Get-ExistingSubtitleStreams -VideoPath $VideoPath)
 
     if ($existingSubtitles.Count -gt 0 -and -not $Quiet) {
-        Write-Host "  Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..." -ForegroundColor Gray
+        Show-Detail "  Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..."
     }
 
     # Build and execute ffmpeg command
@@ -147,7 +152,7 @@ function Invoke-SubtitleMuxer {
                                    -OutputPath $OutputPath -ExistingSubtitleStreams $existingSubtitles
 
     if (-not $Quiet) {
-        Write-Host "Muxing subtitle into video..." -ForegroundColor Cyan
+        Show-Info "Muxing subtitle into video..."
     }
 
     # Update window title for progress display
@@ -194,16 +199,16 @@ if ($MyInvocation.InvocationName -ne '.') {
             Write-Host "Subtitle: $(Split-Path -Leaf $cliSub)" -ForegroundColor White
             Write-Host "================================================" -ForegroundColor Cyan
             Write-Host ""
-            Write-Host "Processing..." -ForegroundColor Yellow
+            Show-Step "Processing..."
             $result = Invoke-SubtitleMuxer -VideoPath $cliVideo -SubtitlePath $cliSub
             Write-Host ""
-            Write-Host "Success! Output: $result" -ForegroundColor Green
+            Show-Success "Success! Output: $result"
         } catch {
-            Write-Host "Error: $_" -ForegroundColor Red
+            Show-Error "Error: $_"
             exit 1
         }
     } else {
-        Write-Host "Usage: mux.ps1 <video_file> <subtitle_file>" -ForegroundColor Yellow
+        Show-Warning "Usage: mux.ps1 <video_file> <subtitle_file>"
         exit 1
     }
 }
