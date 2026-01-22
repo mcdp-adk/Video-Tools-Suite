@@ -366,15 +366,18 @@ function Invoke-SubtitleOnlyDownloadMenu {
         Show-Detail "  Project: $($project.ProjectName)"
 
         Write-Host ""
-        $subCount = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
+        $subResult = Invoke-SubtitleDownload -Url $url -ProjectDir $project.ProjectDir
 
         Write-Host ""
-        if ($subCount -gt 0) {
-            Show-Success "Subtitles downloaded!"
-            Show-Detail "  Project folder: $($project.ProjectDir)"
-            Show-Detail "  Subtitle files: $subCount"
+        if ($subResult.SubtitleFile) {
+            Show-Success "Subtitle downloaded!"
+            Show-Detail "  File: $(Split-Path -Leaf $subResult.SubtitleFile)"
+            Show-Detail "  Type: $($subResult.SubtitleType)"
+            Show-Detail "  Language: $($subResult.VideoLanguage)"
+        } elseif ($subResult.SubtitleType -eq "embedded") {
+            Show-Success "Target language subtitle already embedded in video"
         } else {
-            Show-Error "No subtitles available for this video"
+            Show-Warning "No subtitles available for this video"
         }
     }
     catch {
