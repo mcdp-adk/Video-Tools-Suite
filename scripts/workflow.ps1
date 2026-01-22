@@ -122,6 +122,7 @@ function Resume-Workflow {
         return @{ Success = $true; Skipped = $true }
     }
 
+    Write-Host ""
     Show-Info "Resuming from stage: $($status.NextStage)"
 
     # Determine skip flags based on status
@@ -223,6 +224,7 @@ function Invoke-FullWorkflow {
         }
     }
     else {
+        Write-Host ""
         Show-Hint "[Step 1/3] Skipping download (using existing files)"
 
         if ($ExistingProjectDir) {

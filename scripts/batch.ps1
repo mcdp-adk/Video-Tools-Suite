@@ -27,6 +27,7 @@ if (-not (Get-Command "Resume-Workflow" -ErrorAction SilentlyContinue)) {
 # Configuration (set by vts.ps1)
 $script:BatchParallelDownloads = 3
 $script:BatchOutputDir = "$PSScriptRoot\..\output"
+$script:BatchCookieFile = ""
 $script:GenerateTranscriptInWorkflow = $false
 $script:TargetLanguage = "zh-Hans"
 
@@ -127,11 +128,12 @@ function Invoke-ParallelDownload {
 
                 # Start job
                 $job = Start-Job -ScriptBlock {
-                    param($ScriptRoot, $Url, $TargetLang, $OutputDir)
+                    param($ScriptRoot, $Url, $TargetLang, $OutputDir, $CookieFile)
                     . "$ScriptRoot\utils.ps1"
                     . "$ScriptRoot\download.ps1"
                     $script:TargetLanguage = $TargetLang
                     $script:YtdlOutputDir = $OutputDir
+                    $script:YtdlCookieFile = $CookieFile
 
                     try {
                         $project = New-VideoProjectDir -Url $Url
@@ -159,7 +161,7 @@ function Invoke-ParallelDownload {
                             VideoId = $null
                         }
                     }
-                } -ArgumentList $PSScriptRoot, $url, $script:TargetLanguage, $script:BatchOutputDir
+                } -ArgumentList $PSScriptRoot, $url, $script:TargetLanguage, $script:BatchOutputDir, $script:BatchCookieFile
 
                 $slots[$slotIdx] = @{ Status = "running"; VideoId = $videoId; Job = $job; Url = $url }
             }

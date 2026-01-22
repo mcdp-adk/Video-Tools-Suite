@@ -114,6 +114,7 @@ function Apply-ConfigToModules {
     # Sync batch settings
     $script:BatchParallelDownloads = $script:Config.BatchParallelDownloads  # batch.ps1
     $script:BatchOutputDir = $outputDir                                      # batch.ps1
+    $script:BatchCookieFile = $script:Config.CookieFile                      # batch.ps1
     $script:GenerateTranscriptInWorkflow = $script:Config.GenerateTranscriptInWorkflow  # batch.ps1
 }
 
