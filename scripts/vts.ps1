@@ -10,7 +10,6 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 . "$PSScriptRoot\subtitle-utils.ps1"
 . "$PSScriptRoot\ai-client.ps1"
 . "$PSScriptRoot\glossary.ps1"
-. "$PSScriptRoot\process.ps1"
 . "$PSScriptRoot\mux.ps1"
 . "$PSScriptRoot\download.ps1"
 . "$PSScriptRoot\transcript.ps1"
@@ -95,7 +94,6 @@ function Apply-ConfigToModules {
     # Sync output directories to all modules
     $script:YtdlOutputDir = $outputDir          # download.ps1
     $script:MuxerOutputDir = $outputDir         # mux.ps1
-    $script:ProcessedOutputDir = $outputDir     # process.ps1
     $script:TranscriptOutputDir = $outputDir    # transcript.ps1
     $script:TranslateOutputDir = $outputDir     # translate.ps1
     $script:WorkflowOutputDir = $outputDir      # workflow.ps1

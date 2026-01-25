@@ -495,49 +495,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return $header + "`n" + ($events -join "`n") + "`n"
 }
 
-# Generate monolingual ASS subtitle content
-function New-MonolingualAssContent {
-    param(
-        [Parameter(Mandatory=$true)]
-        [array]$Entries,
-        [string]$FontName = "Noto Sans CJK SC",
-        [int]$FontSize = 48,
-        [int]$PlayResX = 1920,
-        [int]$PlayResY = 1080
-    )
-
-    $header = @"
-[Script Info]
-Title: Subtitles
-ScriptType: v4.00+
-PlayResX: $PlayResX
-PlayResY: $PlayResY
-WrapStyle: 0
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,$FontName,$FontSize,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,2,2,30,30,35,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"@
-
-    $events = @()
-
-    foreach ($entry in $Entries) {
-        $start = ConvertTo-AssTimestamp -Time $entry.StartTime
-        $end = ConvertTo-AssTimestamp -Time $entry.EndTime
-
-        # Escape special ASS characters
-        $text = $entry.Text -replace '\\', '\\\\' -replace '{', '\{' -replace '}', '\}'
-
-        $events += "Dialogue: 0,$start,$end,Default,,0,0,0,,$text"
-    }
-
-    return $header + "`n" + ($events -join "`n") + "`n"
-}
-
 #endregion
 
 #region Text Formatting
@@ -573,104 +530,9 @@ function Format-ChineseText {
     return $result.Trim()
 }
 
-# Apply text formatting to subtitle entries
-function Format-SubtitleEntries {
-    param(
-        [Parameter(Mandatory=$true)]
-        [array]$Entries
-    )
-
-    $formattedEntries = @()
-
-    foreach ($entry in $Entries) {
-        $formattedEntries += @{
-            StartTime = $entry.StartTime
-            EndTime = $entry.EndTime
-            Text = Format-ChineseText -Text $entry.Text
-        }
-    }
-
-    return $formattedEntries
-}
-
 #endregion
 
 #region Utility Functions
-
-# Merge consecutive subtitle entries with same text
-function Merge-SubtitleEntries {
-    param(
-        [Parameter(Mandatory=$true)]
-        [array]$Entries,
-        [int]$MaxGapMs = 500
-    )
-
-    if ($Entries.Count -eq 0) { return @() }
-
-    $merged = @()
-    $current = $Entries[0].Clone()
-
-    for ($i = 1; $i -lt $Entries.Count; $i++) {
-        $entry = $Entries[$i]
-        $gap = ($entry.StartTime - $current.EndTime).TotalMilliseconds
-
-        if ($entry.Text -eq $current.Text -and $gap -le $MaxGapMs) {
-            # Extend current entry
-            $current.EndTime = $entry.EndTime
-        } else {
-            $merged += $current
-            $current = $entry.Clone()
-        }
-    }
-
-    $merged += $current
-
-    return $merged
-}
-
-# Extract complete sentences from subtitle entries
-function Get-CompleteSentences {
-    param(
-        [Parameter(Mandatory=$true)]
-        [array]$Entries
-    )
-
-    $sentences = @()
-    $currentSentence = ""
-    $startTime = $null
-    $endTime = $null
-
-    foreach ($entry in $Entries) {
-        if (-not $startTime) {
-            $startTime = $entry.StartTime
-        }
-        $endTime = $entry.EndTime
-
-        $currentSentence += " " + $entry.Text
-
-        # Check if sentence ends (period, question mark, exclamation mark)
-        if ($entry.Text -match '[.!?]$') {
-            $sentences += @{
-                StartTime = $startTime
-                EndTime = $endTime
-                Text = $currentSentence.Trim()
-            }
-            $currentSentence = ""
-            $startTime = $null
-        }
-    }
-
-    # Add remaining text as last sentence
-    if ($currentSentence.Trim()) {
-        $sentences += @{
-            StartTime = $startTime
-            EndTime = $endTime
-            Text = $currentSentence.Trim()
-        }
-    }
-
-    return $sentences
-}
 
 # Save ASS content to file
 function Export-AssFile {
