@@ -300,18 +300,23 @@ function Invoke-BatchWorkflow {
         foreach ($item in $successfulDownloads) {
             if ($item.SubtitlePath) {
                 $transcriptCount++
+                $displayName = if ($item.Title) { $item.Title } else { $item.VideoId }
+
+                Show-Detail "[$transcriptCount/$($successfulDownloads.Count)] $displayName" -Indent 2
                 Set-VtsWindowTitle -Phase Transcript -Status "Transcript [$transcriptCount/$($successfulDownloads.Count)]"
 
                 $transcriptPath = Join-Path $item.ProjectDir "transcript.txt"
                 try {
                     Invoke-TranscriptGenerator -InputPath $item.SubtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
+                    $icon = $script:StatusIcon.Done
+                    Show-Success "$icon $displayName" -Indent 2
                 } catch {
                     # Transcript failure is non-fatal
-                    Show-Warning "    Transcript failed for $($item.VideoId): $_"
+                    $icon = $script:StatusIcon.Failed
+                    Show-Warning "$icon $displayName: $_" -Indent 2
                 }
             }
         }
-        Show-Success "  Transcripts generated: $transcriptCount"
         Write-Host ""
     }
     #endregion
