@@ -1,6 +1,11 @@
 # AI Client module for OpenAI-compatible API calls
 # Supports subtitle segmentation, translation, and proofreading
 
+# Load config (if not already loaded)
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+
 # Dot source dependencies if not already loaded
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"

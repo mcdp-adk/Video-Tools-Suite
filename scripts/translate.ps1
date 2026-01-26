@@ -1,6 +1,11 @@
 # Subtitle translation module
 # Uses AI translation
 
+# Load config (if not already loaded)
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+
 # Dot source dependencies if not already loaded
 if (-not (Get-Command "Import-SubtitleFile" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\subtitle-utils.ps1"

@@ -1,6 +1,11 @@
 # Transcript generation module
 # Converts subtitle files to plain text transcripts
 
+# Load config (if not already loaded)
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+
 # Dot source utilities if not already loaded
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"

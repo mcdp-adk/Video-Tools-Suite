@@ -1,6 +1,11 @@
 # Full workflow module
 # Handles complete pipeline: download -> translate -> mux
 
+# Load config (if not already loaded)
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+
 # Dot source dependencies if not already loaded
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"

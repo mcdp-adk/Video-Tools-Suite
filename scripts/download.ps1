@@ -2,6 +2,11 @@
 # $script:YtdlCookieFile
 # $script:YtdlOutputDir
 
+# Load config (if not already loaded)
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+
 # Import utilities if not already loaded
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"

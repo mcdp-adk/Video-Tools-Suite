@@ -19,11 +19,15 @@ Video Tools Suite 是一个基于 PowerShell 的视频处理工具集，用于�
 # 运行主程序
 .\vts.bat
 
-# 验证脚本语法
-powershell -Command ". .\scripts\config-manager.ps1; . .\scripts\<module>.ps1"
-```
+# 单独运行模块（会自动加载配置）
+powershell .\scripts\download.ps1 "https://youtube.com/watch?v=xxx"
+powershell .\scripts\translate.ps1 "subtitle.vtt"
+powershell .\scripts\transcript.ps1 "subtitle.vtt"
+powershell .\scripts\mux.ps1 "video.mp4" "subtitle.ass"
 
-**注意**：模块不再支持独立运行（无默认配置值），必须通过 vts.bat 使用。
+# 验证脚本语法
+powershell -Command ". .\scripts\<module>.ps1"
+```
 
 ## 架构
 
@@ -72,7 +76,14 @@ Apply-ConfigToModules  # 同步配置到各模块的 $script:* 变量
 Ensure-ConfigReady     # 确保配置已初始化（首次运行检查）
 ```
 
-**重要**：模块不再有默认值，必须通过 config-manager.ps1 获取配置。
+**自动初始化**：config-manager.ps1 在被加载时会自动调用 `Ensure-ConfigReady`，无需手动初始化。
+
+**模块加载模式**：各模块在文件开头包含统一的配置加载代码：
+```powershell
+if (-not (Get-Command "Ensure-ConfigReady" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
+```
 
 ### 语言配置 (lang-config.ps1)
 

@@ -109,3 +109,8 @@ function Ensure-ConfigReady {
 
     return $needsSetup
 }
+
+# Auto-initialize config when this module is loaded (if not already initialized)
+if (-not $script:Config.Count) {
+    $null = Ensure-ConfigReady
+}
