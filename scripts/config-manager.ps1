@@ -1,12 +1,16 @@
 # Configuration Manager - Central configuration read/write
 # All scripts must use this module for configuration access
 
-# Paths
-$script:ConfigFile = "$PSScriptRoot\..\config.json"
-$script:ConfigExampleFile = "$PSScriptRoot\..\config.example.json"
+# Paths (use absolute paths based on script location)
+$script:ProjectRoot = (Resolve-Path "$PSScriptRoot\..").Path
+$script:ConfigFile = Join-Path $script:ProjectRoot "config.json"
+$script:ConfigExampleFile = Join-Path $script:ProjectRoot "config.example.json"
 
 # In-memory config (populated by Import-Config)
 $script:Config = @{}
+
+# Track if this is first run (for setup wizard)
+$script:IsFirstRun = $false
 
 # Check if config exists
 function Test-ConfigExists {
@@ -66,7 +70,15 @@ function Set-ConfigValue {
 
 # Apply config to all module variables
 function Apply-ConfigToModules {
+    # Resolve OutputDir relative to project root
     $outputDir = $script:Config.OutputDir
+    if ($outputDir -match '^\.[\\/]') {
+        # Relative path starting with ./ or .\
+        $outputDir = Join-Path $script:ProjectRoot ($outputDir -replace '^\.[\\/]', '')
+    } elseif (-not [System.IO.Path]::IsPathRooted($outputDir)) {
+        # Relative path without ./
+        $outputDir = Join-Path $script:ProjectRoot $outputDir
+    }
 
     # Output directories
     $script:YtdlOutputDir = $outputDir
@@ -76,9 +88,17 @@ function Apply-ConfigToModules {
     $script:WorkflowOutputDir = $outputDir
     $script:BatchOutputDir = $outputDir
 
-    # Cookie
-    $script:YtdlCookieFile = $script:Config.CookieFile
-    $script:BatchCookieFile = $script:Config.CookieFile
+    # Resolve CookieFile relative to project root (if relative)
+    $cookieFile = $script:Config.CookieFile
+    if ($cookieFile -and -not [System.IO.Path]::IsPathRooted($cookieFile)) {
+        if ($cookieFile -match '^\.[\\/]') {
+            $cookieFile = Join-Path $script:ProjectRoot ($cookieFile -replace '^\.[\\/]', '')
+        } else {
+            $cookieFile = Join-Path $script:ProjectRoot $cookieFile
+        }
+    }
+    $script:YtdlCookieFile = $cookieFile
+    $script:BatchCookieFile = $cookieFile
 
     # Translation
     $script:TargetLanguage = $script:Config.TargetLanguage
@@ -97,17 +117,15 @@ function Apply-ConfigToModules {
 # Ensure config is ready (init if needed, then load)
 # Returns $true if setup wizard should be shown (first run)
 function Ensure-ConfigReady {
-    $needsSetup = $false
-
     if (-not (Test-ConfigExists)) {
         Initialize-Config
-        $needsSetup = $true
+        $script:IsFirstRun = $true
     }
 
     Import-Config
     Apply-ConfigToModules
 
-    return $needsSetup
+    return $script:IsFirstRun
 }
 
 # Auto-initialize config when this module is loaded (if not already initialized)
