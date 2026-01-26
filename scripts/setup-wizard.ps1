@@ -74,7 +74,7 @@ function Invoke-Step2-CookieFile {
     Write-Host ""
 
     while ($true) {
-        $cookiePath = Read-Host "  Enter cookie file path (or B to go back)"
+        $cookiePath = Read-Host "  Enter cookie file path"
 
         if ($cookiePath -ieq 'B') { return 'back' }
 
@@ -226,7 +226,7 @@ function Invoke-Step4-Model {
     } else {
         Show-NavigationHint -CanGoBack $true -CanReset $true
         Write-Host ""
-        $input = Read-Host "  Enter model name (or B/D)"
+        $input = Read-Host "  Enter model name"
         if ($input -ieq 'B') { return 'back' }
         if ($input -ieq 'D') {
             Set-ConfigValue -Key "AiModel" -Value (Get-DefaultConfigValue -Key "AiModel")
@@ -246,7 +246,7 @@ function Invoke-Step5-ApiKey {
     Write-Host ""
 
     while ($true) {
-        $apiKey = Read-Host "  API Key (or B to go back)"
+        $apiKey = Read-Host "  API Key"
 
         if ($apiKey -ieq 'B') { return 'back' }
 
