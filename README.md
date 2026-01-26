@@ -77,14 +77,14 @@ vts.bat
 
 ```json
 {
-  "FirstRun": true,
   "OutputDir": "./output",
   "CookieFile": "",
+  "TargetLanguage": "zh-Hans",
+  "EmbedFontFile": "LXGWWenKaiLite-Medium.ttf",
   "AiProvider": "openai",
   "AiBaseUrl": "https://api.openai.com/v1",
   "AiApiKey": "",
-  "AiModel": "gpt-4o-mini",
-  "TargetLanguage": "zh-CN"
+  "AiModel": "gpt-4o-mini"
 }
 ```
 

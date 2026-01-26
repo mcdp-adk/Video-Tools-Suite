@@ -401,7 +401,6 @@ function Start-MainMenu {
     $needsSetup = Ensure-ConfigReady
     if ($needsSetup) {
         Start-SetupWizard
-        Complete-Setup
         Apply-ConfigToModules
     }
 
@@ -423,7 +422,6 @@ function Start-MainMenu {
                     # Config was reset, run setup wizard
                     $null = Ensure-ConfigReady
                     Start-SetupWizard
-                    Complete-Setup
                     Apply-ConfigToModules
                 }
             }

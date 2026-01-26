@@ -20,14 +20,10 @@ Video Tools Suite 是一个基于 PowerShell 的视频处理工具集，用于�
 .\vts.bat
 
 # 验证脚本语法
-powershell -Command ". .\scripts\<module>.ps1"
-
-# 单独运行模块
-powershell .\scripts\download.ps1 "https://youtube.com/watch?v=xxx"
-powershell .\scripts\translate.ps1 "subtitle.vtt"
-powershell .\scripts\transcript.ps1 "subtitle.vtt"
-powershell .\scripts\mux.ps1 "video.mp4" "subtitle.ass"
+powershell -Command ". .\scripts\config-manager.ps1; . .\scripts\<module>.ps1"
 ```
+
+**注意**：模块不再支持独立运行（无默认配置值），必须通过 vts.bat 使用。
 
 ## 架构
 
@@ -224,7 +220,6 @@ do {
 
 | 配置键 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `FirstRun` | bool | `true` | 首次运行标记 |
 | `OutputDir` | string | `"./output"` | 输出目录 |
 | `CookieFile` | string | `""` | yt-dlp cookie 文件路径 |
 | `TargetLanguage` | string | `"zh-Hans"` | 翻译目标语言 |

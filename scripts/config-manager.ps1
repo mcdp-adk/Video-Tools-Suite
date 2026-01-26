@@ -105,19 +105,7 @@ function Ensure-ConfigReady {
     }
 
     Import-Config
-
-    # Check FirstRun flag
-    if ($script:Config.FirstRun -eq $true) {
-        $needsSetup = $true
-    }
-
     Apply-ConfigToModules
 
     return $needsSetup
-}
-
-# Mark setup as complete
-function Complete-Setup {
-    $script:Config.FirstRun = $false
-    Export-Config
 }
