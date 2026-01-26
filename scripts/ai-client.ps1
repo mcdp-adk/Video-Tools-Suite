@@ -541,8 +541,8 @@ You are a subtitle proofreader for $TargetLanguage translations.
 Review and improve the translations:
 1. Fix any awkward phrasing or unnatural expressions
 2. Ensure consistency in terminology throughout
-3. For Chinese: Add proper spacing between Chinese and English/numbers
-4. For Chinese: Replace Chinese punctuation (comma, period) with spaces for subtitle readability
+3. For Chinese: Replace Chinese punctuation (comma, period, enumeration comma) with spaces for subtitle readability
+4. For Chinese: Use corner brackets「」for quotations
 5. Keep the meaning faithful to the original
 6. Output format: JSON array with objects containing "index", "translation"
 

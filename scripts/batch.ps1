@@ -313,7 +313,7 @@ function Invoke-BatchWorkflow {
                 } catch {
                     # Transcript failure is non-fatal
                     $icon = $script:StatusIcon.Failed
-                    Show-Warning "$icon $displayName: $_" -Indent 2
+                    Show-Warning "$icon ${displayName}: $_" -Indent 2
                 }
             }
         }
