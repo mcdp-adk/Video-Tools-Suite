@@ -214,6 +214,30 @@ do {
 - 空输入采用默认值
 - 分隔线使用 `("-" * 60)` 或 `("=" * 60)`
 
+**操作按键规范**（使用 utils.ps1 中的函数）：
+
+| Type | Color | Usage |
+|------|-------|-------|
+| navigation | DarkGray | [B] Back, [Q] Quit |
+| confirm | Green | [C] Confirm, [A] Add |
+| danger | Red | [X] Delete |
+| action | Magenta | [N] New |
+| setting | Cyan | [S] Settings, [D] Default |
+| warning | Yellow | [R] Reset/Remove |
+
+```powershell
+# 显示操作按键
+Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
+Show-ActionKey -Key "C" -Label "Confirm" -Type "confirm"
+Show-ActionKey -Key "X" -Label "Delete" -Type "danger"
+
+# 显示导航提示行
+Show-ActionHint -Back -Default
+
+# 确认提示
+if (Read-Confirmation -Prompt "Delete?") { ... }
+```
+
 ## 外部依赖
 
 - yt-dlp: 视频下载
