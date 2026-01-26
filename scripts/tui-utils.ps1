@@ -44,7 +44,7 @@ function Restore-WindowTitle {
 
 # Status icons for TUI display
 $script:StatusIcon = @{
-    Waiting = [char]::ConvertFromUtf32(0x23F8)
+    Waiting = [char]::ConvertFromUtf32(0x1F4A4)  # 💤 Zzz
     InProgress = [char]::ConvertFromUtf32(0x23F3)
     Done = [char]::ConvertFromUtf32(0x2705)
     Failed = [char]::ConvertFromUtf32(0x274C)
