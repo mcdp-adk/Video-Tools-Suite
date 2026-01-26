@@ -30,22 +30,34 @@ function Show-WizardHeader {
 }
 
 function Show-NavigationHint {
-    param([bool]$CanGoBack = $true)
+    param(
+        [bool]$CanGoBack = $true,
+        [bool]$CanReset = $false
+    )
     Write-Host ""
-    if ($CanGoBack) {
-        Show-Hint "[B] Back to previous step"
+    $hints = @()
+    if ($CanGoBack) { $hints += "[B] Back" }
+    if ($CanReset) { $hints += "[D] Default" }
+    if ($hints.Count -gt 0) {
+        Show-Hint ($hints -join "  ")
     }
 }
 
 function Invoke-Step1-OutputDir {
     Show-WizardHeader -Step 1 -Title "Output Directory"
     Show-Detail "Where should files be saved?"
+    Show-NavigationHint -CanGoBack $false -CanReset $true
     Write-Host ""
 
     $currentValue = Get-ConfigValue -Key "OutputDir"
     $input = Read-Host "  [$currentValue]"
 
     if ($input -ieq 'B') { return 'back' }
+    if ($input -ieq 'D') {
+        Set-ConfigValue -Key "OutputDir" -Value (Get-DefaultConfigValue -Key "OutputDir")
+        Show-Success "Reset to default: $(Get-ConfigValue -Key 'OutputDir')"
+        return 'next'
+    }
     if ($input) {
         Set-ConfigValue -Key "OutputDir" -Value $input
     }
@@ -58,7 +70,7 @@ function Invoke-Step2-CookieFile {
     Show-WizardHeader -Step 2 -Title "Cookie File"
     Show-Detail "For downloading videos (especially age-restricted or member-only),"
     Show-Detail "you need to provide a cookie file exported from your browser."
-    Show-NavigationHint
+    Show-NavigationHint -CanGoBack $true -CanReset $false
     Write-Host ""
 
     while ($true) {
@@ -97,13 +109,19 @@ function Invoke-Step3-AiProvider {
     Write-Host ""
     Write-Host "  [4] Custom" -ForegroundColor White
     Show-Hint "Enter your own API endpoint" -Indent 2
-    Show-NavigationHint
+    Show-NavigationHint -CanGoBack $true -CanReset $true
     Write-Host ""
 
     while ($true) {
-        $choice = Read-Host "  Select [1-4, default=1, B=Back]"
+        $choice = Read-Host "  Select [1-4, default=1]"
 
         if ($choice -ieq 'B') { return 'back' }
+        if ($choice -ieq 'D') {
+            Set-ConfigValue -Key "AiProvider" -Value (Get-DefaultConfigValue -Key "AiProvider")
+            Set-ConfigValue -Key "AiBaseUrl" -Value (Get-DefaultConfigValue -Key "AiBaseUrl")
+            Show-Success "Reset to default: $(Get-ConfigValue -Key 'AiProvider')"
+            return 'next'
+        }
         if (-not $choice) { $choice = '1' }
 
         if ($choice -notmatch '^[1234]$') {
@@ -175,13 +193,18 @@ function Invoke-Step4-Model {
         if ($currentProvider -eq 'openrouter') {
             Show-Hint "Visit openrouter.ai/models for available models" -Indent 2
         }
-        Show-NavigationHint
+        Show-NavigationHint -CanGoBack $true -CanReset $true
         Write-Host ""
 
         while ($true) {
-            $choice = Read-Host "  Select [1-$maxChoice, default=1, B=Back]"
+            $choice = Read-Host "  Select [1-$maxChoice, default=1]"
 
             if ($choice -ieq 'B') { return 'back' }
+            if ($choice -ieq 'D') {
+                Set-ConfigValue -Key "AiModel" -Value (Get-DefaultConfigValue -Key "AiModel")
+                Show-Success "Reset to default: $(Get-ConfigValue -Key 'AiModel')"
+                return 'next'
+            }
             if (-not $choice) { $choice = '1' }
 
             if ($choice -notmatch "^[1-$maxChoice]$") {
@@ -201,10 +224,15 @@ function Invoke-Step4-Model {
             return 'next'
         }
     } else {
-        Show-NavigationHint
+        Show-NavigationHint -CanGoBack $true -CanReset $true
         Write-Host ""
-        $input = Read-Host "  Enter model name (or B to go back)"
+        $input = Read-Host "  Enter model name (or B/D)"
         if ($input -ieq 'B') { return 'back' }
+        if ($input -ieq 'D') {
+            Set-ConfigValue -Key "AiModel" -Value (Get-DefaultConfigValue -Key "AiModel")
+            Show-Success "Reset to default: $(Get-ConfigValue -Key 'AiModel')"
+            return 'next'
+        }
         Set-ConfigValue -Key "AiModel" -Value $input
         Show-Success "Model: $input"
         return 'next'
@@ -214,7 +242,7 @@ function Invoke-Step4-Model {
 function Invoke-Step5-ApiKey {
     Show-WizardHeader -Step 5 -Title "API Key"
     Show-Detail "Enter your API key (will be saved locally):"
-    Show-NavigationHint
+    Show-NavigationHint -CanGoBack $true -CanReset $false
     Write-Host ""
 
     while ($true) {
@@ -264,13 +292,19 @@ function Invoke-Step6-Language {
         Write-Host "  [$($i + 1)] $label" -ForegroundColor White
     }
     Write-Host "  [$maxLangChoice] Custom" -ForegroundColor White
-    Show-NavigationHint
+    Show-NavigationHint -CanGoBack $true -CanReset $true
     Write-Host ""
 
     while ($true) {
-        $choice = Read-Host "  Select [1-$maxLangChoice, default=1, 'b' to go back]"
+        $choice = Read-Host "  Select [1-$maxLangChoice, default=1]"
 
         if ($choice -ieq 'B') { return 'back' }
+        if ($choice -ieq 'D') {
+            Set-ConfigValue -Key "TargetLanguage" -Value (Get-DefaultConfigValue -Key "TargetLanguage")
+            $langDisplay = Get-LanguageDisplayName -LangCode (Get-ConfigValue -Key "TargetLanguage")
+            Show-Success "Reset to default: $langDisplay ($(Get-ConfigValue -Key 'TargetLanguage'))"
+            return 'next'
+        }
         if (-not $choice) { $choice = '1' }
 
         if ($choice -notmatch "^[1-$maxLangChoice]$") {

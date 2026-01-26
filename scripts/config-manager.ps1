@@ -65,6 +65,16 @@ function Get-ConfigValue {
     return $script:Config[$Key]
 }
 
+# Get default config value from config.example.json
+function Get-DefaultConfigValue {
+    param([string]$Key)
+    if (-not (Test-Path $script:ConfigExampleFile)) {
+        return $null
+    }
+    $defaults = Get-Content $script:ConfigExampleFile -Raw | ConvertFrom-Json
+    return $defaults.$Key
+}
+
 # Set config value (in memory, call Export-Config to persist)
 function Set-ConfigValue {
     param([string]$Key, $Value)
