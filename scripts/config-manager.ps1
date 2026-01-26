@@ -17,21 +17,24 @@ function Test-ConfigExists {
     return (Test-Path $script:ConfigFile)
 }
 
-# Initialize config from example (copy example to config.json)
+# Initialize config from example (load defaults into memory, don't create file yet)
 function Initialize-Config {
     if (-not (Test-Path $script:ConfigExampleFile)) {
         throw "config.example.json not found"
     }
-    Copy-Item -Path $script:ConfigExampleFile -Destination $script:ConfigFile -Force
+    # Only load defaults into memory, don't create config.json
+    # Config file will be created when Export-Config is called
 }
 
 # Load config from file into $script:Config
 function Import-Config {
-    if (-not (Test-ConfigExists)) {
-        throw "config.json not found. Call Initialize-Config first."
+    $sourceFile = if (Test-ConfigExists) { $script:ConfigFile } else { $script:ConfigExampleFile }
+
+    if (-not (Test-Path $sourceFile)) {
+        throw "No config source found"
     }
 
-    $fileConfig = Get-Content $script:ConfigFile -Raw | ConvertFrom-Json
+    $fileConfig = Get-Content $sourceFile -Raw | ConvertFrom-Json
 
     # Convert PSObject to hashtable
     $script:Config = @{}
