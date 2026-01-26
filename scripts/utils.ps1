@@ -96,9 +96,66 @@ function Show-Hint {
     Write-ColoredMessage -Message "$prefix$Message" -Color DarkGray
 }
 
+# Display action key with consistent styling
+# Types: navigation, confirm, danger, action, setting, warning
+function Show-ActionKey {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Key,
+        [Parameter(Mandatory=$true)]
+        [string]$Label,
+        [ValidateSet("navigation", "confirm", "danger", "action", "setting", "warning")]
+        [string]$Type = "navigation"
+    )
+
+    $colors = @{
+        "navigation" = "DarkGray"
+        "confirm"    = "Green"
+        "danger"     = "Red"
+        "action"     = "Magenta"
+        "setting"    = "Cyan"
+        "warning"    = "Yellow"
+    }
+
+    Write-Host "  [$Key]" -ForegroundColor $colors[$Type] -NoNewline
+    Write-Host " $Label" -ForegroundColor White
+}
+
+# Display navigation hint line with common action keys
+function Show-ActionHint {
+    param(
+        [switch]$Back,
+        [switch]$Default,
+        [switch]$Confirm,
+        [switch]$Cancel
+    )
+
+    $hints = @()
+    if ($Back) { $hints += "[B] Back" }
+    if ($Default) { $hints += "[D] Default" }
+    if ($Confirm) { $hints += "[C] Confirm" }
+    if ($Cancel) { $hints += "[X] Cancel" }
+
+    if ($hints.Count -gt 0) {
+        Write-Host ""
+        Show-Hint ($hints -join "  ")
+    }
+}
+
 #endregion
 
 #region Input Utilities
+
+# Unified Y/N confirmation prompt
+function Read-Confirmation {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Prompt
+    )
+
+    $response = Read-Host "  $Prompt (Y/N)"
+    return $response -ieq 'Y'
+}
 
 # Wait with countdown, auto-start after timeout or immediate start on Enter
 # Returns $true if started (timeout or Enter), $false if cancelled (Ctrl+C handled by caller)
