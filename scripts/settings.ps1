@@ -60,7 +60,7 @@ function Invoke-SettingsMenu {
         Write-Host $(if ($script:Config.GenerateTranscriptInWorkflow) { "Enabled" } else { "Disabled" }) -ForegroundColor White
         Write-Host "  [9] Parallel Downloads:  " -NoNewline -ForegroundColor Gray
         Write-Host "$($script:Config.BatchParallelDownloads)" -ForegroundColor White
-        Write-Host "  [0] Glossaries..." -ForegroundColor DarkGray
+        Write-Host "  [0] View Glossaries..." -ForegroundColor DarkGray
         Show-ActionKey -Key "R" -Label "Reset to Default" -Type "warning"
         Write-Host ""
         Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
