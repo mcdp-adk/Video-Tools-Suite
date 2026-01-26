@@ -44,6 +44,27 @@ vts.bat
 └── output/              # 默认输出目录
 ```
 
+## 术语库
+
+翻译时自动应用 `glossaries/` 下的术语库，确保专有名词翻译一致。
+
+格式为 CSV，每行一个术语：
+
+```csv
+source,target
+Machine Learning,机器学习
+Neural Network,神经网络
+```
+
+按领域分文件管理（如 `tech.csv`、`game.csv`），直接用文本编辑器编辑即可。
+
+## 字体嵌入
+
+双语字幕会嵌入 `fonts/` 目录下的字体到 MKV 文件，确保播放时正确显示。
+
+1. 将 `.ttf` 字体文件放入 `fonts/` 目录
+2. 在设置中选择要使用的字体
+
 ## YouTube Cookie
 
 遇到 "Sign in to confirm you're not a bot" 时：
