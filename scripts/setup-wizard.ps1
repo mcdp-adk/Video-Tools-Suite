@@ -29,24 +29,10 @@ function Show-WizardHeader {
     Write-Host ""
 }
 
-function Show-NavigationHint {
-    param(
-        [bool]$CanGoBack = $true,
-        [bool]$CanReset = $false
-    )
-    Write-Host ""
-    $hints = @()
-    if ($CanGoBack) { $hints += "[B] Back" }
-    if ($CanReset) { $hints += "[D] Default" }
-    if ($hints.Count -gt 0) {
-        Show-Hint ($hints -join "  ")
-    }
-}
-
 function Invoke-Step1-OutputDir {
     Show-WizardHeader -Step 1 -Title "Output Directory"
     Show-Detail "Where should files be saved?"
-    Show-NavigationHint -CanGoBack $false -CanReset $true
+    Show-ActionHint -Default
     Write-Host ""
 
     $currentValue = Get-ConfigValue -Key "OutputDir"
@@ -70,7 +56,7 @@ function Invoke-Step2-CookieFile {
     Show-WizardHeader -Step 2 -Title "Cookie File"
     Show-Detail "For downloading videos (especially age-restricted or member-only),"
     Show-Detail "you need to provide a cookie file exported from your browser."
-    Show-NavigationHint -CanGoBack $true -CanReset $false
+    Show-ActionHint -Back
     Write-Host ""
 
     while ($true) {
@@ -109,7 +95,7 @@ function Invoke-Step3-AiProvider {
     Write-Host ""
     Write-Host "  [4] Custom" -ForegroundColor White
     Show-Hint "Enter your own API endpoint" -Indent 2
-    Show-NavigationHint -CanGoBack $true -CanReset $true
+    Show-ActionHint -Back -Default
     Write-Host ""
 
     while ($true) {
@@ -193,7 +179,7 @@ function Invoke-Step4-Model {
         if ($currentProvider -eq 'openrouter') {
             Show-Hint "Visit openrouter.ai/models for available models" -Indent 2
         }
-        Show-NavigationHint -CanGoBack $true -CanReset $true
+        Show-ActionHint -Back -Default
         Write-Host ""
 
         while ($true) {
@@ -224,7 +210,7 @@ function Invoke-Step4-Model {
             return 'next'
         }
     } else {
-        Show-NavigationHint -CanGoBack $true -CanReset $true
+        Show-ActionHint -Back -Default
         Write-Host ""
         $input = Read-Host "  Enter model name"
         if ($input -ieq 'B') { return 'back' }
@@ -242,7 +228,7 @@ function Invoke-Step4-Model {
 function Invoke-Step5-ApiKey {
     Show-WizardHeader -Step 5 -Title "API Key"
     Show-Detail "Enter your API key (will be saved locally):"
-    Show-NavigationHint -CanGoBack $true -CanReset $false
+    Show-ActionHint -Back
     Write-Host ""
 
     while ($true) {
@@ -292,7 +278,7 @@ function Invoke-Step6-Language {
         Write-Host "  [$($i + 1)] $label" -ForegroundColor White
     }
     Write-Host "  [$maxLangChoice] Custom" -ForegroundColor White
-    Show-NavigationHint -CanGoBack $true -CanReset $true
+    Show-ActionHint -Back -Default
     Write-Host ""
 
     while ($true) {
@@ -395,7 +381,7 @@ function Start-SetupWizard {
     while ($true) {
         Show-ConfigSummary
 
-        Write-Host "  [C] Confirm and save" -ForegroundColor Green
+        Show-ActionKey -Key "C" -Label "Confirm and save" -Type "confirm"
         Write-Host "  [1-6] Edit specific setting" -ForegroundColor White
         Write-Host ""
 
