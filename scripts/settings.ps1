@@ -68,7 +68,7 @@ function Invoke-SettingsMenu {
         Write-Host ("=" * 60) -ForegroundColor DarkGray
         Write-Host ""
 
-        $choice = (Read-Host "Enter option").Trim().ToUpper()
+        $choice = (Read-Host "Select").Trim().ToUpper()
 
         switch ($choice) {
             '1' {
@@ -245,8 +245,8 @@ function Invoke-SettingsMenu {
             'R' {
                 Write-Host ""
                 Write-Host "  This will reset all settings to default." -ForegroundColor Yellow
-                $confirm = Read-Host "  Continue? [y/N]"
-                if ($confirm -eq 'y' -or $confirm -eq 'Y') {
+                $confirm = Read-Host "  Continue? (Y/N)"
+                if ($confirm -ieq 'Y') {
                     Reset-Config
                     Show-Success "  Settings reset. Returning to main menu..."
                     Start-Sleep -Seconds 1

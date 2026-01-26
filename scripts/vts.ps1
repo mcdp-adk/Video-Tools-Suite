@@ -61,7 +61,7 @@ function Get-MenuChoice {
     param([string[]]$ValidChoices = @('A', 'B', '1', '2', '3', '4', 'S', 'Q'))
 
     do {
-        $choice = (Read-Host "Enter your choice").Trim().ToUpper()
+        $choice = (Read-Host "Select").Trim().ToUpper()
 
         if ($ValidChoices -contains $choice) {
             return $choice
@@ -88,7 +88,7 @@ function Show-Header {
 function Pause-Menu {
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
-    Read-Host "Press Enter to return to main menu" | Out-Null
+    Read-Host "Press Enter to continue" | Out-Null
 }
 
 function Show-UrlFormats {
@@ -138,7 +138,7 @@ function Invoke-FullWorkflowMenu {
         if ($projectDir -or $url) {
             Write-Host ""
             $retry = Read-Host "Retry? (Y/N)"
-            if ($retry -eq 'y') {
+            if ($retry -ieq 'Y') {
                 if ($projectDir) {
                     # Smart retry from last stage
                     $retryResult = Resume-Workflow -ProjectDir $projectDir -Url $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
@@ -167,7 +167,7 @@ function Invoke-BatchDownloadMenu {
     Write-Host "  [B] Back" -ForegroundColor DarkGray
     Write-Host ""
 
-    $choice = Read-Host "Select input method"
+    $choice = Read-Host "Select"
 
     $urls = @()
 
@@ -236,7 +236,7 @@ function Invoke-BatchDownloadMenu {
     while ($result.Failed.Count -gt 0) {
         Write-Host ""
         $retry = Read-Host "Retry failed items? (Y/N)"
-        if ($retry -eq 'y') {
+        if ($retry -ieq 'Y') {
             $result = Invoke-BatchRetry -FailedItems $result.Failed
         }
         else {

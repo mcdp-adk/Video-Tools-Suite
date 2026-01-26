@@ -261,7 +261,7 @@ function Show-GlossaryMenu {
         Write-Host ("=" * 60) -ForegroundColor DarkGray
         Write-Host ""
 
-        $choice = (Read-Host "Select glossary to edit (or N/B)").Trim().ToUpper()
+        $choice = (Read-Host "Select").Trim().ToUpper()
 
         if ($choice -eq 'B') {
             return
@@ -363,7 +363,7 @@ function Edit-GlossaryInteractive {
         Write-Host " Back" -ForegroundColor White
         Write-Host ""
 
-        $choice = (Read-Host "Select action").Trim().ToUpper()
+        $choice = (Read-Host "Select").Trim().ToUpper()
 
         switch ($choice) {
             'A' {
@@ -393,8 +393,8 @@ function Edit-GlossaryInteractive {
             }
             'D' {
                 Write-Host ""
-                $confirm = Read-Host "Are you sure you want to delete this glossary? (yes/no)"
-                if ($confirm -eq 'yes') {
+                $confirm = Read-Host "Delete this glossary? (Y/N)"
+                if ($confirm -ieq 'Y') {
                     Remove-Glossary -GlossaryPath $GlossaryPath
                     Show-Success "Glossary deleted"
                     Start-Sleep -Seconds 1

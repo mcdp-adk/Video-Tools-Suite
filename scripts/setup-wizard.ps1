@@ -33,7 +33,7 @@ function Show-NavigationHint {
     param([bool]$CanGoBack = $true)
     Write-Host ""
     if ($CanGoBack) {
-        Show-Hint "Type 'b' to go back to previous step"
+        Show-Hint "[B] Back to previous step"
     }
 }
 
@@ -45,7 +45,7 @@ function Invoke-Step1-OutputDir {
     $currentValue = Get-ConfigValue -Key "OutputDir"
     $input = Read-Host "  [$currentValue]"
 
-    if ($input -eq 'b') { return 'back' }
+    if ($input -ieq 'B') { return 'back' }
     if ($input) {
         Set-ConfigValue -Key "OutputDir" -Value $input
     }
@@ -62,9 +62,9 @@ function Invoke-Step2-CookieFile {
     Write-Host ""
 
     while ($true) {
-        $cookiePath = Read-Host "  Enter cookie file path (or 'b' to go back)"
+        $cookiePath = Read-Host "  Enter cookie file path (or B to go back)"
 
-        if ($cookiePath -eq 'b') { return 'back' }
+        if ($cookiePath -ieq 'B') { return 'back' }
 
         if (-not $cookiePath) {
             Show-Error "Cookie file is required. Please enter a valid path."
@@ -101,9 +101,9 @@ function Invoke-Step3-AiProvider {
     Write-Host ""
 
     while ($true) {
-        $choice = Read-Host "  Select [1-4, default=1, 'b' to go back]"
+        $choice = Read-Host "  Select [1-4, default=1, B=Back]"
 
-        if ($choice -eq 'b') { return 'back' }
+        if ($choice -ieq 'B') { return 'back' }
         if (-not $choice) { $choice = '1' }
 
         if ($choice -notmatch '^[1234]$') {
@@ -179,9 +179,9 @@ function Invoke-Step4-Model {
         Write-Host ""
 
         while ($true) {
-            $choice = Read-Host "  Select [1-$maxChoice, default=1, 'b' to go back]"
+            $choice = Read-Host "  Select [1-$maxChoice, default=1, B=Back]"
 
-            if ($choice -eq 'b') { return 'back' }
+            if ($choice -ieq 'B') { return 'back' }
             if (-not $choice) { $choice = '1' }
 
             if ($choice -notmatch "^[1-$maxChoice]$") {
@@ -203,8 +203,8 @@ function Invoke-Step4-Model {
     } else {
         Show-NavigationHint
         Write-Host ""
-        $input = Read-Host "  Enter model name (or 'b' to go back)"
-        if ($input -eq 'b') { return 'back' }
+        $input = Read-Host "  Enter model name (or B to go back)"
+        if ($input -ieq 'B') { return 'back' }
         Set-ConfigValue -Key "AiModel" -Value $input
         Show-Success "Model: $input"
         return 'next'
@@ -218,9 +218,9 @@ function Invoke-Step5-ApiKey {
     Write-Host ""
 
     while ($true) {
-        $apiKey = Read-Host "  API Key (or 'b' to go back)"
+        $apiKey = Read-Host "  API Key (or B to go back)"
 
-        if ($apiKey -eq 'b') { return 'back' }
+        if ($apiKey -ieq 'B') { return 'back' }
 
         if (-not $apiKey) {
             Show-Error "API key is required. Please enter a valid key."
@@ -270,7 +270,7 @@ function Invoke-Step6-Language {
     while ($true) {
         $choice = Read-Host "  Select [1-$maxLangChoice, default=1, 'b' to go back]"
 
-        if ($choice -eq 'b') { return 'back' }
+        if ($choice -ieq 'B') { return 'back' }
         if (-not $choice) { $choice = '1' }
 
         if ($choice -notmatch "^[1-$maxLangChoice]$") {
@@ -367,7 +367,7 @@ function Start-SetupWizard {
 
         $choice = Read-Host "  Select option"
 
-        if ($choice -eq 'c' -or $choice -eq 'C') {
+        if ($choice -ieq 'C') {
             Export-Config
             Write-Host ""
             Show-Success "Setup complete! Configuration saved."
