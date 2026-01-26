@@ -76,8 +76,8 @@ Neural Network,神经网络
 
 ## 致谢
 
-- [WEIFENG2333/VideoCaptioner](https://github.com/WEIFENG2333/VideoCaptioner) - 全流程处理的灵感来源
-- [immersive-translate/terms](https://github.com/immersive-translate/terms) - 术语库格式参考
+- [WEIFENG2333/VideoCaptioner](https://github.com/WEIFENG2333/VideoCaptioner) - 全流程处理灵感来源及实现方式参考
+- [immersive-translate/terms](https://github.com/immersive-translate/terms) - 术语库内容参考
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - 视频下载
 - [ffmpeg](https://github.com/FFmpeg/FFmpeg) - 视频处理
 - [LXGW WenKai](https://github.com/lxgw/LxgwWenKai) - 默认嵌入字体
