@@ -34,7 +34,12 @@ powershell .\scripts\mux.ps1 "video.mp4" "subtitle.ass"
 ```
 vts.bat → vts.ps1 (主 TUI 程序)
               │
-              ├── 配置管理: Import-Config, Export-Config, Apply-ConfigToModules
+              ├── config-manager.ps1 (配置中间件)
+              │     ├── Import-Config, Export-Config
+              │     ├── Get-ConfigValue, Set-ConfigValue
+              │     └── Apply-ConfigToModules
+              │
+              ├── settings.ps1 → Invoke-SettingsMenu (设置界面)
               │
               └── 菜单调用模块 API:
                     ├── download.ps1   → New-VideoProjectDir, Invoke-VideoDownload, Invoke-SubtitleDownload, Get-VideoSubtitleInfo, Get-PlaylistVideoUrls
@@ -48,19 +53,30 @@ vts.bat → vts.ps1 (主 TUI 程序)
     ├── ai-client.ps1     → Invoke-AiCompletion, Invoke-SubtitleTranslate, Invoke-GlobalProofread
     ├── subtitle-utils.ps1 → Import-SubtitleFile, New-BilingualAssContent, Export-AssFile
     ├── glossary.ps1      → Get-AllGlossaryTerms, Import-Glossary
-    ├── lang-config.ps1   → Get-LanguageDisplayName, $script:LanguageMap, $script:DefaultTargetLanguage
+    ├── lang-config.ps1   → Get-LanguageDisplayName, $script:LanguageMap
     ├── tui-utils.ps1     → Set-VtsWindowTitle, Save-WindowTitle, New-ProgressBar, Write-AtPosition
     └── utils.ps1         → Show-Success, Show-Error, Show-Warning, Show-Info
 ```
 
 ### 配置同步机制
 
-vts.ps1 通过 `Apply-ConfigToModules` 将中央配置同步到各模块的 `$script:*` 变量：
-- `$script:YtdlOutputDir`, `$script:MuxerOutputDir` 等 → 各模块输出目录
-- `$script:AiClient_*` → AI API 配置
-- `$script:TargetLanguage` → 翻译目标语言
+config-manager.ps1 是配置系统的中间件，所有配置操作通过它进行：
 
-每个模块也有默认值，支持独立运行。
+```powershell
+# 配置流程
+config.example.json → Initialize-Config → config.json
+config.json → Import-Config → $script:Config → Apply-ConfigToModules → 模块变量
+
+# 主要函数
+Import-Config          # 加载配置到 $script:Config
+Export-Config          # 保存 $script:Config 到文件
+Get-ConfigValue        # 读取单个配置项
+Set-ConfigValue        # 设置单个配置项
+Apply-ConfigToModules  # 同步配置到各模块的 $script:* 变量
+Ensure-ConfigReady     # 确保配置已初始化（首次运行检查）
+```
+
+**重要**：模块不再有默认值，必须通过 config-manager.ps1 获取配置。
 
 ### 语言配置 (lang-config.ps1)
 
@@ -69,7 +85,6 @@ vts.ps1 通过 `Apply-ConfigToModules` 将中央配置同步到各模块的 `$sc
 ```powershell
 $script:LanguageMap           # 语言代码 → AI 显示名称 (如 'zh-Hans' → 'Chinese (Simplified)')
 $script:QuickSelectLanguages  # 快速选择菜单的语言列表
-$script:DefaultTargetLanguage # 默认目标语言 ('zh-Hans')
 
 Get-LanguageDisplayName -LangCode 'zh-Hans'  # 返回 'Chinese (Simplified)'
 ```
@@ -212,13 +227,14 @@ do {
 | `FirstRun` | bool | `true` | 首次运行标记 |
 | `OutputDir` | string | `"./output"` | 输出目录 |
 | `CookieFile` | string | `""` | yt-dlp cookie 文件路径 |
+| `TargetLanguage` | string | `"zh-Hans"` | 翻译目标语言 |
+| `EmbedFontFile` | string | `"LXGWWenKaiLite-Medium.ttf"` | 嵌入字体文件名 |
+| `GenerateTranscriptInWorkflow` | bool | `false` | 工作流中是否生成纯文本 |
+| `BatchParallelDownloads` | int | `3` | 批量下载并行数 (1-10) |
 | `AiProvider` | string | `"openai"` | AI 提供商标识 |
 | `AiBaseUrl` | string | `"https://api.openai.com/v1"` | AI API 端点 |
 | `AiApiKey` | string | `""` | AI API 密钥 |
 | `AiModel` | string | `"gpt-4o-mini"` | AI 模型名称 |
-| `TargetLanguage` | string | `"zh-Hans"` | 翻译目标语言 |
-| `GenerateTranscriptInWorkflow` | bool | `false` | 工作流中是否生成纯文本 |
-| `BatchParallelDownloads` | int | `3` | 批量下载并行数 (1-10) |
 
 ### 配置同步机制
 
@@ -235,13 +251,14 @@ config.json → Import-Config → $script:Config → Apply-ConfigToModules → �
 | `OutputDir` | `$script:TranscriptOutputDir` | transcript.ps1 |
 | `OutputDir` | `$script:TranslateOutputDir` | translate.ps1 |
 | `OutputDir` | `$script:WorkflowOutputDir` | workflow.ps1 |
+| `OutputDir` | `$script:BatchOutputDir` | batch.ps1 |
 | `CookieFile` | `$script:YtdlCookieFile` | download.ps1 |
-| `TargetLanguage` | `$script:TargetLanguage` | translate.ps1 |
+| `TargetLanguage` | `$script:TargetLanguage` | translate.ps1, workflow.ps1 |
+| `EmbedFontFile` | `$script:EmbedFontFile` | translate.ps1, mux.ps1 |
 | `AiBaseUrl` | `$script:AiClient_BaseUrl` | ai-client.ps1 |
 | `AiApiKey` | `$script:AiClient_ApiKey` | ai-client.ps1 |
 | `AiModel` | `$script:AiClient_Model` | ai-client.ps1 |
 | `BatchParallelDownloads` | `$script:BatchParallelDownloads` | batch.ps1 |
-| `OutputDir` | `$script:BatchOutputDir` | batch.ps1 |
 | `GenerateTranscriptInWorkflow` | `$script:GenerateTranscriptInWorkflow` | batch.ps1 |
 
 ### Claude 测试命令指南
@@ -263,4 +280,31 @@ yt-dlp --cookies $config.CookieFile --list-subs "URL"
 
 # 错误方式：硬编码路径
 yt-dlp --cookies "D:\some\path\cookies.txt" --list-subs "URL"  # ❌ 不要这样做
+```
+
+## 字体嵌入
+
+### 字体目录
+
+- **位置**: `fonts/` (项目根目录)
+- **默认字体**: `LXGWWenKaiLite-Medium.ttf`
+
+### 工作流程
+
+1. **设置界面**：从 `fonts/` 目录读取可用 `.ttf` 文件供用户选择
+2. **翻译时**：使用配置的字体名称（不含扩展名）生成 ASS 字幕
+3. **封装时**：通过 `ffmpeg -attach` 将字体文件嵌入 MKV
+
+### 代码规范
+
+- **禁止硬编码字体名称**：不要在代码中写死如 "Microsoft YaHei"、"Noto Sans" 等
+- **ASS 字体名**：使用文件名（不含扩展名），如 `LXGWWenKaiLite-Medium`
+- **不嵌入时**：默认使用 `Arial`（通用字体）
+
+```powershell
+# 正确：从配置读取字体
+$fontName = [System.IO.Path]::GetFileNameWithoutExtension($script:EmbedFontFile)
+
+# 错误：硬编码字体名称
+$fontName = "Microsoft YaHei"  # ❌ 不要这样做
 ```
