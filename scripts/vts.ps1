@@ -32,26 +32,18 @@ function Show-Menu {
     Write-Host "  Output: $(Format-DisplayPath $script:Config.OutputDir)" -ForegroundColor DarkGray
     Write-Host ""
 
-    Write-Host "  [A]" -ForegroundColor Magenta -NoNewline
-    Write-Host " All-in-One Workflow" -ForegroundColor White
-    Write-Host "  [B]" -ForegroundColor Magenta -NoNewline
-    Write-Host " Batch Download (Playlist/Multi-URL)" -ForegroundColor White
+    Show-ActionKey -Key "A" -Label "All-in-One Workflow" -Type "action"
+    Show-ActionKey -Key "B" -Label "Batch Download (Playlist/Multi-URL)" -Type "action"
     Write-Host ""
 
-    Write-Host "  [1]" -ForegroundColor Green -NoNewline
-    Write-Host " Download Video" -ForegroundColor White
-    Write-Host "  [2]" -ForegroundColor Green -NoNewline
-    Write-Host " Download Subtitles Only" -ForegroundColor White
-    Write-Host "  [3]" -ForegroundColor Green -NoNewline
-    Write-Host " Generate Transcript" -ForegroundColor White
-    Write-Host "  [4]" -ForegroundColor Green -NoNewline
-    Write-Host " Translate Subtitles" -ForegroundColor White
+    Write-Host "  [1] Download Video" -ForegroundColor White
+    Write-Host "  [2] Download Subtitles Only" -ForegroundColor White
+    Write-Host "  [3] Generate Transcript" -ForegroundColor White
+    Write-Host "  [4] Translate Subtitles" -ForegroundColor White
     Write-Host ""
 
-    Write-Host "  [S]" -ForegroundColor Cyan -NoNewline
-    Write-Host " Settings" -ForegroundColor White
-    Write-Host "  [Q]" -ForegroundColor Red -NoNewline
-    Write-Host " Quit" -ForegroundColor White
+    Show-ActionKey -Key "S" -Label "Settings" -Type "setting"
+    Show-ActionKey -Key "Q" -Label "Quit" -Type "navigation"
     Write-Host ""
     Write-Host ("=" * 60) -ForegroundColor DarkGray
     Write-Host ""
@@ -137,8 +129,7 @@ function Invoke-FullWorkflowMenu {
         # Offer retry if we have project info
         if ($projectDir -or $url) {
             Write-Host ""
-            $retry = Read-Host "Retry? (Y/N)"
-            if ($retry -ieq 'Y') {
+            if (Read-Confirmation -Prompt "Retry?") {
                 if ($projectDir) {
                     # Smart retry from last stage
                     $retryResult = Resume-Workflow -ProjectDir $projectDir -Url $url -GenerateTranscript:$script:Config.GenerateTranscriptInWorkflow
@@ -164,7 +155,7 @@ function Invoke-BatchDownloadMenu {
 
     Write-Host "  [1] YouTube Playlist URL" -ForegroundColor White
     Write-Host "  [2] Enter Multiple URLs" -ForegroundColor White
-    Write-Host "  [B] Back" -ForegroundColor DarkGray
+    Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
     Write-Host ""
 
     $choice = Read-Host "Select"
@@ -235,8 +226,7 @@ function Invoke-BatchDownloadMenu {
     # Offer retry if there are failures
     while ($result.Failed.Count -gt 0) {
         Write-Host ""
-        $retry = Read-Host "Retry failed items? (Y/N)"
-        if ($retry -ieq 'Y') {
+        if (Read-Confirmation -Prompt "Retry failed items?") {
             $result = Invoke-BatchRetry -FailedItems $result.Failed
         }
         else {
