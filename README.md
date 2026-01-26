@@ -46,7 +46,7 @@ vts.bat
 
 ## 术语库
 
-翻译时自动应用 `glossaries/` 下的术语库，确保专有名词翻译一致。
+翻译时 AI 自动根据字幕内容匹配相关术语库，确保专有名词翻译一致。
 
 格式为 CSV，每行一个术语：
 
@@ -56,7 +56,7 @@ Machine Learning,机器学习
 Neural Network,神经网络
 ```
 
-按领域分文件管理（如 `tech.csv`、`game.csv`），直接用文本编辑器编辑即可。
+按领域分文件管理（如 `tech.csv`、`mufc.csv`），AI 会根据内容自动选择。
 
 ## 字体嵌入
 
@@ -73,6 +73,14 @@ Neural Network,神经网络
 2. 导出 Cookie 文件
 3. 在设置中配置 Cookie 路径
 4. 关闭隐私窗口（防止 Cookie 失效）
+
+## 致谢
+
+- [WEIFENG2333/VideoCaptioner](https://github.com/WEIFENG2333/VideoCaptioner) - 全流程处理的灵感来源
+- [immersive-translate/terms](https://github.com/immersive-translate/terms) - 术语库格式参考
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - 视频下载
+- [ffmpeg](https://github.com/FFmpeg/FFmpeg) - 视频处理
+- [LXGW WenKai](https://github.com/lxgw/LxgwWenKai) - 默认嵌入字体
 
 ## 许可证
 
