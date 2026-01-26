@@ -253,10 +253,8 @@ function Show-GlossaryMenu {
         }
 
         Write-Host ""
-        Write-Host "  [N]" -ForegroundColor Magenta -NoNewline
-        Write-Host " Create New Glossary" -ForegroundColor White
-        Write-Host "  [B]" -ForegroundColor DarkGray -NoNewline
-        Write-Host " Back" -ForegroundColor White
+        Show-ActionKey -Key "N" -Label "Create New Glossary" -Type "action"
+        Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
         Write-Host ""
         Write-Host ("=" * 60) -ForegroundColor DarkGray
         Write-Host ""
@@ -353,14 +351,10 @@ function Edit-GlossaryInteractive {
         }
 
         Write-Host ""
-        Write-Host "  [A]" -ForegroundColor Green -NoNewline
-        Write-Host " Add/Update Term" -ForegroundColor White
-        Write-Host "  [R]" -ForegroundColor Yellow -NoNewline
-        Write-Host " Remove Term" -ForegroundColor White
-        Write-Host "  [D]" -ForegroundColor Red -NoNewline
-        Write-Host " Delete Glossary" -ForegroundColor White
-        Write-Host "  [B]" -ForegroundColor DarkGray -NoNewline
-        Write-Host " Back" -ForegroundColor White
+        Show-ActionKey -Key "A" -Label "Add/Update Term" -Type "confirm"
+        Show-ActionKey -Key "R" -Label "Remove Term" -Type "warning"
+        Show-ActionKey -Key "X" -Label "Delete Glossary" -Type "danger"
+        Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
         Write-Host ""
 
         $choice = (Read-Host "Select").Trim().ToUpper()
@@ -391,10 +385,9 @@ function Edit-GlossaryInteractive {
                     Start-Sleep -Seconds 1
                 }
             }
-            'D' {
+            'X' {
                 Write-Host ""
-                $confirm = Read-Host "Delete this glossary? (Y/N)"
-                if ($confirm -ieq 'Y') {
+                if (Read-Confirmation -Prompt "Delete this glossary?") {
                     Remove-Glossary -GlossaryPath $GlossaryPath
                     Show-Success "Glossary deleted"
                     Start-Sleep -Seconds 1
