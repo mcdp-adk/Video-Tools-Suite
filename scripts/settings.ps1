@@ -61,9 +61,9 @@ function Invoke-SettingsMenu {
         Write-Host "  [9] Parallel Downloads:  " -NoNewline -ForegroundColor Gray
         Write-Host "$($script:Config.BatchParallelDownloads)" -ForegroundColor White
         Write-Host "  [0] Glossaries..." -ForegroundColor DarkGray
-        Write-Host "  [R] Reset to Default" -ForegroundColor DarkGray
+        Show-ActionKey -Key "R" -Label "Reset to Default" -Type "warning"
         Write-Host ""
-        Write-Host "  [B] Back" -ForegroundColor DarkGray
+        Show-ActionKey -Key "B" -Label "Back" -Type "navigation"
         Write-Host ""
         Write-Host ("=" * 60) -ForegroundColor DarkGray
         Write-Host ""
@@ -245,8 +245,7 @@ function Invoke-SettingsMenu {
             'R' {
                 Write-Host ""
                 Write-Host "  This will reset all settings to default." -ForegroundColor Yellow
-                $confirm = Read-Host "  Continue? (Y/N)"
-                if ($confirm -ieq 'Y') {
+                if (Read-Confirmation -Prompt "Continue?") {
                     Reset-Config
                     Show-Success "  Settings reset. Returning to main menu..."
                     Start-Sleep -Seconds 1
