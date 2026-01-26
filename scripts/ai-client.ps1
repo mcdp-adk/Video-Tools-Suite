@@ -227,7 +227,7 @@ function Invoke-CueBasedSegmentation {
         $batchCues = @($Cues[$batchStart..$batchEnd])
 
         # Update window title with progress
-        Set-VtsWindowTitle -Phase Transcript -Status "Processing batch $batchIndex/$totalBatches..."
+        Set-VtsWindowTitle -Phase Segment -Status "Segmenting $batchIndex/$totalBatches..."
 
         # Collect words for this batch
         $batchWords = @()
@@ -642,6 +642,106 @@ Only include entries that need changes. Respond ONLY with the JSON array.
     finally {
         Restore-WindowTitle -Title $originalTitle
     }
+
+    return $result
+}
+
+#endregion
+
+#region Source Proofreading
+
+# Proofread source text (for auto-generated subtitles)
+function Invoke-SourceProofread {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Entries,
+        [hashtable]$Glossary = @{},
+        [int]$BatchSize = 30,
+        [switch]$Quiet
+    )
+
+    if ($Entries.Count -eq 0) {
+        return $Entries
+    }
+
+    # Build glossary terms list for prompt
+    $glossaryInstruction = ""
+    if ($Glossary.Count -gt 0) {
+        $termsList = @($Glossary.Keys | Select-Object -First 50) -join ", "
+        $glossaryInstruction = "`nTerminology to normalize (use exact spelling): $termsList"
+    }
+
+    $systemPrompt = @"
+You are a subtitle proofreader for auto-generated subtitles.
+
+Fix these issues:
+1. Speech recognition errors (e.g., "their" vs "there", misheared words)
+2. Missing punctuation (add periods, commas, question marks where appropriate)
+3. Normalize terminology spelling based on the glossary$glossaryInstruction
+
+Output format: JSON array with objects containing "index", "text"
+Only include entries that need changes. Respond ONLY with the JSON array.
+"@
+
+    # Clone entries
+    $result = @()
+    foreach ($entry in $Entries) {
+        $result += @{
+            StartTime = $entry.StartTime
+            EndTime = $entry.EndTime
+            Text = $entry.Text
+        }
+    }
+
+    $totalBatches = [math]::Ceiling($Entries.Count / $BatchSize)
+    $originalTitle = Save-WindowTitle
+    $corrections = 0
+
+    try {
+        for ($batchIndex = 0; $batchIndex -lt $totalBatches; $batchIndex++) {
+            Set-VtsWindowTitle -Phase SourceProofread -Status "Source proofreading $($batchIndex + 1)/$totalBatches..."
+
+            $startIdx = $batchIndex * $BatchSize
+            $endIdx = [math]::Min($startIdx + $BatchSize - 1, $Entries.Count - 1)
+
+            $batchInput = @()
+            for ($i = $startIdx; $i -le $endIdx; $i++) {
+                $batchInput += @{ index = $i; text = $Entries[$i].Text }
+            }
+
+            $userPrompt = "Proofread these auto-generated subtitles:`n" + ($batchInput | ConvertTo-Json -Depth 5)
+
+            try {
+                if (-not $Quiet) { Show-Detail "Source proofreading batch $($batchIndex + 1)/$totalBatches..." }
+
+                $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
+
+                # Parse JSON
+                $jsonContent = $response
+                if ($response -match '\[[\s\S]*\]') {
+                    $jsonContent = $Matches[0]
+                }
+                $jsonContent = $jsonContent.Trim() -replace '\][\s]*[.,;:!?]+\s*$', ']'
+
+                if ($jsonContent -and $jsonContent -ne '[]') {
+                    $edits = $jsonContent | ConvertFrom-Json
+                    foreach ($edit in $edits) {
+                        $idx = $edit.index
+                        if ($idx -ge 0 -and $idx -lt $result.Count) {
+                            $result[$idx].Text = $edit.text
+                            $corrections++
+                        }
+                    }
+                }
+            } catch {
+                Write-Warning "Batch $($batchIndex + 1) source proofreading failed: $_"
+            }
+        }
+    } finally {
+        Restore-WindowTitle -Title $originalTitle
+    }
+
+    if (-not $Quiet) { Show-Detail "Corrections: $corrections entries modified" }
 
     return $result
 }

@@ -9,13 +9,16 @@ $script:TitleEmoji = @{
     Transcript = [char]::ConvertFromUtf32(0x1F4DD)
     Translate = [char]::ConvertFromUtf32(0x1F310)
     Mux = [char]::ConvertFromUtf32(0x1F3AC)
+    GlossaryMatch = [char]::ConvertFromUtf32(0x1F50D)
+    SourceProofread = [char]::ConvertFromUtf32(0x270F)
+    Segment = [char]::ConvertFromUtf32(0x2702)
 }
 
 # Set window title with emoji prefix
 function Set-VtsWindowTitle {
     param(
         [Parameter(Mandatory=$true)]
-        [ValidateSet('Download', 'Transcript', 'Translate', 'Mux')]
+        [ValidateSet('Download', 'Transcript', 'Translate', 'Mux', 'GlossaryMatch', 'SourceProofread', 'Segment')]
         [string]$Phase,
         [Parameter(Mandatory=$true)]
         [string]$Status

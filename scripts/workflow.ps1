@@ -277,16 +277,16 @@ function Invoke-FullWorkflow {
     $bilingualAssPath = ""
 
     if (-not $SkipTranslate -and -not $skipTranslation -and $subtitlePath) {
-        Set-VtsWindowTitle -Phase Translate -Status "Translating..."
         Show-Step "[Step $currentStep/$totalSteps] Translating subtitles..."
-
-        # Check language
-        $subtitleData = Import-SubtitleFile -Path $subtitlePath
-        $langCheck = Test-SubtitleLanguage -Entries $subtitleData.Entries
-        Show-Detail "Source: $($langCheck.DetectedLanguage)"
 
         $bilingualAssPath = Join-Path $projectDir "bilingual.ass"
 
+        # Invoke-SubtitleTranslator handles:
+        # - Glossary matching
+        # - Segmentation (if auto-generated)
+        # - Source proofreading (if auto-generated)
+        # - Translation
+        # - Translation proofreading
         $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -EmbedFont -Quiet
 
         Show-Success "  Output: bilingual.ass"

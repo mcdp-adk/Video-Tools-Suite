@@ -6,6 +6,9 @@
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
+if (-not (Get-Command "Invoke-AiCompletion" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\ai-client.ps1"
+}
 
 # Configuration
 $script:GlossaryDir = "$PSScriptRoot\..\glossaries"
@@ -120,6 +123,119 @@ function Get-GlossaryList {
     }
 
     return $glossaries
+}
+
+#endregion
+
+#region Glossary Matching Functions
+
+# Get all glossary names (without extension)
+function Get-GlossaryNames {
+    $files = Get-GlossaryFiles
+    return @($files | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) })
+}
+
+# Get content sample for analysis
+function Get-ContentSample {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Entries,
+        [int]$SampleSize = 50
+    )
+
+    $total = $Entries.Count
+
+    if ($total -lt $SampleSize) {
+        return @($Entries | ForEach-Object { $_.Text })
+    }
+
+    # Skip first/last 10%, sample from middle 80%
+    $skipCount = [math]::Floor($total * 0.1)
+    $middleEntries = @($Entries[$skipCount..($total - $skipCount - 1)])
+
+    # Evenly sample
+    $step = [math]::Max(1, [math]::Floor($middleEntries.Count / $SampleSize))
+    $sampled = @()
+    for ($i = 0; $i -lt $middleEntries.Count -and $sampled.Count -lt $SampleSize; $i += $step) {
+        $sampled += $middleEntries[$i].Text
+    }
+
+    return $sampled
+}
+
+# Select relevant glossaries based on content analysis (by glossary name)
+function Select-RelevantGlossaries {
+    param(
+        [Parameter(Mandatory=$false)]
+        [array]$Entries = @(),
+        [switch]$Quiet
+    )
+
+    # Guard against empty entries
+    if (-not $Entries -or $Entries.Count -eq 0) {
+        return @()
+    }
+
+    # Get glossary names
+    $glossaryNames = Get-GlossaryNames
+    if ($glossaryNames.Count -eq 0) {
+        return @()
+    }
+
+    # Sample content: <50 use all, >=50 sample 50 from middle 80%
+    $sampleTexts = Get-ContentSample -Entries $Entries -SampleSize 50
+
+    $systemPrompt = @"
+You are a content analyzer. Based on the subtitle content, select relevant glossaries by name.
+Available glossaries: $($glossaryNames -join ', ')
+
+Return ONLY a JSON array of glossary names, e.g. ["mufc", "sports"]
+If no glossary is relevant, return []
+"@
+
+    $userPrompt = "Subtitle sample:`n$($sampleTexts -join "`n")`n`nWhich glossaries are relevant?"
+
+    try {
+        $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.1 -MaxTokens 256
+
+        # Parse JSON response
+        if ($response -match '\[.*\]') {
+            $selected = $Matches[0] | ConvertFrom-Json
+            # Filter to valid names only
+            return @($selected | Where-Object { $glossaryNames -contains $_ })
+        }
+    } catch {
+        if (-not $Quiet) { Write-Warning "Glossary matching failed: $_" }
+    }
+
+    return @()
+}
+
+# Get terms from selected glossaries
+function Get-SelectedGlossaryTerms {
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$GlossaryNames
+    )
+
+    $terms = @{}
+    $files = Get-GlossaryFiles
+
+    foreach ($file in $files) {
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+        if ($GlossaryNames -contains $name) {
+            try {
+                $glossary = Import-Glossary -Path $file.FullName
+                foreach ($key in $glossary.Terms.Keys) {
+                    if (-not $terms.ContainsKey($key)) {
+                        $terms[$key] = $glossary.Terms[$key]
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    return $terms
 }
 
 #endregion
