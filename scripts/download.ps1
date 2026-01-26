@@ -1,6 +1,6 @@
-# Configuration
-$script:YtdlCookieFile = ""
-$script:YtdlOutputDir = "$PSScriptRoot\..\output"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:YtdlCookieFile
+# $script:YtdlOutputDir
 
 # Import utilities if not already loaded
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {

@@ -3,6 +3,7 @@
   "OutputDir": "./output",
   "CookieFile": "",
   "TargetLanguage": "zh-Hans",
+  "EmbedFontFile": "LXGWWenKaiLite-Medium.ttf",
   "GenerateTranscriptInWorkflow": false,
   "BatchParallelDownloads": 3,
   "AiProvider": "openai",

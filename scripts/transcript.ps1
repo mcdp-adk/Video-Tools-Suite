@@ -15,8 +15,8 @@ if (-not (Get-Command "Invoke-SentenceSegmentation" -ErrorAction SilentlyContinu
     . "$PSScriptRoot\ai-client.ps1"
 }
 
-# Configuration
-$script:TranscriptOutputDir = "$PSScriptRoot\..\output"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:TranscriptOutputDir
 
 #region Core Functions
 

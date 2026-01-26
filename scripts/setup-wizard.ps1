@@ -5,6 +5,9 @@
 if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
+if (-not (Get-Command "Import-Config" -ErrorAction SilentlyContinue)) {
+    . "$PSScriptRoot\config-manager.ps1"
+}
 if (-not (Get-Command "Get-LanguageDisplayName" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\lang-config.ps1"
 }
@@ -14,16 +17,7 @@ if (-not (Get-Command "Test-AiConnection" -ErrorAction SilentlyContinue)) {
 
 #region Wizard Functions
 
-# Check if first run
-function Test-FirstRun {
-    param([hashtable]$Config)
-
-    return ($null -eq $Config) -or
-           ($Config.FirstRun -eq $true) -or
-           (-not $Config.ContainsKey('FirstRun'))
-}
-
-# Main setup wizard
+# Main setup wizard - directly modifies $script:Config via config-manager
 function Start-SetupWizard {
     Clear-Host
     Write-Host ""
@@ -36,21 +30,15 @@ function Start-SetupWizard {
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
 
-    # Only store fields that the wizard actually collects
-    # Other fields (like BatchParallelDownloads) keep their defaults from vts.ps1
-    $config = @{
-        FirstRun = $false
-    }
-
     #region Step 1: Output Directory
     Show-Step "Step 1/6: Output Directory"
     Show-Detail "Where should files be saved?"
     Write-Host ""
     $outputDir = Read-Host "  [./output, press Enter for default]"
     if ($outputDir) {
-        $config.OutputDir = $outputDir
+        Set-ConfigValue -Key "OutputDir" -Value $outputDir
     }
-    Show-Success "Output: $($config.OutputDir)"
+    Show-Success "Output: $(Get-ConfigValue -Key 'OutputDir')"
     Write-Host ""
     #endregion
 
@@ -72,7 +60,7 @@ function Start-SetupWizard {
         }
     } while (-not $cookiePath)
 
-    $config.CookieFile = $cookiePath
+    Set-ConfigValue -Key "CookieFile" -Value $cookiePath
     Show-Success "Cookie file set: $cookiePath"
     Write-Host ""
     #endregion
@@ -100,25 +88,25 @@ function Start-SetupWizard {
 
     switch ($providerChoice) {
         '1' {
-            $config.AiProvider = "openai"
-            $config.AiBaseUrl = "https://api.openai.com/v1"
+            Set-ConfigValue -Key "AiProvider" -Value "openai"
+            Set-ConfigValue -Key "AiBaseUrl" -Value "https://api.openai.com/v1"
             Show-Success "OpenAI selected"
         }
         '2' {
-            $config.AiProvider = "deepseek"
-            $config.AiBaseUrl = "https://api.deepseek.com"
+            Set-ConfigValue -Key "AiProvider" -Value "deepseek"
+            Set-ConfigValue -Key "AiBaseUrl" -Value "https://api.deepseek.com"
             Show-Success "DeepSeek selected"
         }
         '3' {
-            $config.AiProvider = "openrouter"
-            $config.AiBaseUrl = "https://openrouter.ai/api/v1"
+            Set-ConfigValue -Key "AiProvider" -Value "openrouter"
+            Set-ConfigValue -Key "AiBaseUrl" -Value "https://openrouter.ai/api/v1"
             Show-Success "OpenRouter selected"
         }
         '4' {
-            $config.AiProvider = "custom"
+            Set-ConfigValue -Key "AiProvider" -Value "custom"
             Write-Host ""
             $customUrl = Read-Host "  Enter API base URL"
-            $config.AiBaseUrl = $customUrl
+            Set-ConfigValue -Key "AiBaseUrl" -Value $customUrl
             Show-Success "Custom provider selected"
         }
     }
@@ -144,8 +132,9 @@ function Start-SetupWizard {
         'openrouter/auto'   = "Automatically selects best model"
     }
 
-    if ($modelOptions.ContainsKey($config.AiProvider)) {
-        $options = $modelOptions[$config.AiProvider]
+    $currentProvider = Get-ConfigValue -Key "AiProvider"
+    if ($modelOptions.ContainsKey($currentProvider)) {
+        $options = $modelOptions[$currentProvider]
         $maxChoice = $options.Count + 1  # +1 for Custom option
 
         for ($i = 0; $i -lt $options.Count; $i++) {
@@ -158,7 +147,7 @@ function Start-SetupWizard {
             Write-Host ""
         }
         Write-Host "  [$maxChoice] Custom" -ForegroundColor White
-        if ($config.AiProvider -eq 'openrouter') {
+        if ($currentProvider -eq 'openrouter') {
             Show-Hint "Visit openrouter.ai/models for available models" -Indent 2
         }
         Write-Host ""
@@ -170,15 +159,17 @@ function Start-SetupWizard {
 
         $choiceIndex = [int]$modelChoice - 1
         if ($choiceIndex -lt $options.Count) {
-            $config.AiModel = $options[$choiceIndex]
+            Set-ConfigValue -Key "AiModel" -Value $options[$choiceIndex]
         } else {
-            $config.AiModel = Read-Host "  Enter model name"
+            $customModel = Read-Host "  Enter model name"
+            Set-ConfigValue -Key "AiModel" -Value $customModel
         }
     } else {
-        $config.AiModel = Read-Host "  Enter model name"
+        $customModel = Read-Host "  Enter model name"
+        Set-ConfigValue -Key "AiModel" -Value $customModel
     }
 
-    Show-Success "Model: $($config.AiModel)"
+    Show-Success "Model: $(Get-ConfigValue -Key 'AiModel')"
     Write-Host ""
     #endregion
 
@@ -197,7 +188,7 @@ function Start-SetupWizard {
             }
         } while (-not $apiKey)
 
-        $config.AiApiKey = $apiKey
+        Set-ConfigValue -Key "AiApiKey" -Value $apiKey
         $maskedKey = $apiKey.Substring(0, [Math]::Min(7, $apiKey.Length)) + "****"
         Show-Detail "Key entered: $maskedKey"
 
@@ -205,9 +196,9 @@ function Start-SetupWizard {
         Show-Info "Testing connection..."
 
         # Temporarily set AI client variables for testing
-        $script:AiClient_BaseUrl = $config.AiBaseUrl
-        $script:AiClient_ApiKey = $config.AiApiKey
-        $script:AiClient_Model = $config.AiModel
+        $script:AiClient_BaseUrl = Get-ConfigValue -Key "AiBaseUrl"
+        $script:AiClient_ApiKey = Get-ConfigValue -Key "AiApiKey"
+        $script:AiClient_Model = Get-ConfigValue -Key "AiModel"
 
         $testResult = Test-AiConnection
 
@@ -247,13 +238,14 @@ function Start-SetupWizard {
 
     $langIndex = [int]$langChoice - 1
     if ($langIndex -lt $langOptions.Count) {
-        $config.TargetLanguage = $langOptions[$langIndex]
+        Set-ConfigValue -Key "TargetLanguage" -Value $langOptions[$langIndex]
     } else {
-        $config.TargetLanguage = Read-Host "  Enter language code"
+        $customLang = Read-Host "  Enter language code"
+        Set-ConfigValue -Key "TargetLanguage" -Value $customLang
     }
 
-    $langDisplay = Get-LanguageDisplayName -LangCode $config.TargetLanguage
-    Show-Success "Target: $langDisplay ($($config.TargetLanguage))"
+    $langDisplay = Get-LanguageDisplayName -LangCode (Get-ConfigValue -Key "TargetLanguage")
+    Show-Success "Target: $langDisplay ($(Get-ConfigValue -Key 'TargetLanguage'))"
     Write-Host ""
     #endregion
 
@@ -266,10 +258,12 @@ function Start-SetupWizard {
     Write-Host ""
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     Write-Host ""
+
+    # Save configuration
+    Export-Config
+
     Read-Host "Press Enter to continue" | Out-Null
     #endregion
-
-    return $config
 }
 
 #endregion

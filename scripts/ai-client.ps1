@@ -9,10 +9,10 @@ if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\tui-utils.ps1"
 }
 
-# Configuration (set by vts.ps1 from config.json)
-$script:AiClient_BaseUrl = "https://api.openai.com/v1"
-$script:AiClient_ApiKey = ""
-$script:AiClient_Model = "gpt-4o-mini"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:AiClient_BaseUrl
+# $script:AiClient_ApiKey
+# $script:AiClient_Model
 
 # Sentence segmentation cache (avoid duplicate AI calls within same session)
 $script:SentenceCache = @{}

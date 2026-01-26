@@ -24,9 +24,6 @@ $script:QuickSelectLanguages = [ordered]@{
     'en'      = 'English'
 }
 
-# Default target language
-$script:DefaultTargetLanguage = 'zh-Hans'
-
 # Get display name for a language code (for AI prompts)
 function Get-LanguageDisplayName {
     param([string]$LangCode)

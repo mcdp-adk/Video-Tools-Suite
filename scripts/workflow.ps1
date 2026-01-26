@@ -27,9 +27,9 @@ if (-not (Get-Command "Invoke-TranscriptGenerator" -ErrorAction SilentlyContinue
     . "$PSScriptRoot\transcript.ps1"
 }
 
-# Configuration (set by vts.ps1 from config.json)
-$script:WorkflowOutputDir = "$PSScriptRoot\..\output"
-$script:TargetLanguage = $script:DefaultTargetLanguage
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:WorkflowOutputDir
+# $script:TargetLanguage
 
 # Detect project completion status by checking artifact files
 function Get-ProjectStatus {
@@ -282,7 +282,7 @@ function Invoke-FullWorkflow {
 
         $bilingualAssPath = Join-Path $projectDir "bilingual.ass"
 
-        $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -Quiet
+        $translateResult = Invoke-SubtitleTranslator -InputPath $subtitlePath -OutputPath $bilingualAssPath -EmbedFont -Quiet
 
         Show-Success "  Output: bilingual.ass"
         Show-Detail "Entries: $($translateResult.EntryCount)"
@@ -317,8 +317,8 @@ function Invoke-FullWorkflow {
         $script:MuxerOutputDir = $script:WorkflowOutputDir
 
         try {
-            # Custom mux to specific output path
-            $muxResult = Invoke-SubtitleMuxer -VideoPath $videoPath -SubtitlePath $bilingualAssPath -Quiet
+            # Custom mux to specific output path with font attachment
+            $muxResult = Invoke-SubtitleMuxer -VideoPath $videoPath -SubtitlePath $bilingualAssPath -AttachFonts -Quiet
 
             # Rename if needed
             if ($muxResult -ne $outputMkvPath -and (Test-Path -LiteralPath $muxResult)) {

@@ -18,9 +18,10 @@ if (-not (Get-Command "Show-Success" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\utils.ps1"
 }
 
-# Configuration (set by vts.ps1 from config.json)
-$script:TargetLanguage = $script:DefaultTargetLanguage
-$script:TranslateOutputDir = "$PSScriptRoot\..\output"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:TargetLanguage
+# $script:TranslateOutputDir
+# $script:EmbedFontFile
 
 #region Main Translation Function
 
@@ -33,6 +34,7 @@ function Invoke-SubtitleTranslator {
         [string]$TargetLanguage = "",
         [switch]$SkipProofread,
         [switch]$GenerateAss,
+        [switch]$EmbedFont,  # Use configured font for embedding
         [switch]$Quiet
     )
 
@@ -120,7 +122,16 @@ function Invoke-SubtitleTranslator {
 
     # Generate ASS file
     if (-not $Quiet) { Show-Info "Generating bilingual ASS subtitle..." }
-    $assContent = New-BilingualAssContent -BilingualEntries $bilingualEntries
+
+    # Set font name if embedding (use filename without extension)
+    $fontParams = @{}
+    if ($EmbedFont -and $script:EmbedFontFile) {
+        $fontName = [System.IO.Path]::GetFileNameWithoutExtension($script:EmbedFontFile)
+        $fontParams["FontName"] = $fontName
+        if (-not $Quiet) { Show-Detail "Using embedded font: $fontName" }
+    }
+
+    $assContent = New-BilingualAssContent -BilingualEntries $bilingualEntries @fontParams
     Export-AssFile -Path $OutputPath -Content $assContent
 
     if (-not $Quiet) {

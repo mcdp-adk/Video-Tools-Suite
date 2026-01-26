@@ -443,9 +443,8 @@ function New-BilingualAssContent {
     param(
         [Parameter(Mandatory=$true)]
         [array]$BilingualEntries,
-        [string]$OriginalFont = "Noto Sans",
+        [string]$FontName = "Arial",  # Font for both styles (Arial when not embedding, configured font when embedding)
         [int]$OriginalFontSize = 38,
-        [string]$TranslationFont = "Microsoft YaHei",
         [int]$TranslationFontSize = 58,
         [int]$PlayResX = 1920,
         [int]$PlayResY = 1080
@@ -465,8 +464,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Translation,$TranslationFont,$TranslationFontSize,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,2,2,30,30,35,1
-Style: Original,$OriginalFont,$OriginalFontSize,&H00CCCCCC,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,2,2,30,30,35,1
+Style: Translation,$FontName,$TranslationFontSize,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,2,2,30,30,35,1
+Style: Original,$FontName,$OriginalFontSize,&H00CCCCCC,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,2,2,30,30,35,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

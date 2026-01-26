@@ -6,10 +6,14 @@ if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\tui-utils.ps1"
 }
 
-# Configuration
-$script:MuxerOutputDir = "$PSScriptRoot\..\output"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:MuxerOutputDir
+# $script:EmbedFontFile
+
+# Module constants
 $script:DefaultSubtitleLang = "chi"
 $script:DefaultSubtitleTitle = "Bilingual Subtitles"
+$script:FontsDir = "$PSScriptRoot\..\fonts"
 
 #region Helper Functions
 
@@ -43,7 +47,8 @@ function Build-FfmpegArgs {
         [string]$VideoPath,
         [string]$SubtitlePath,
         [string]$OutputPath,
-        [array]$ExistingSubtitleStreams
+        [array]$ExistingSubtitleStreams,
+        [string]$FontPath = ""  # Optional: path to font file to attach
     )
 
     # Base arguments: input files and stream mapping
@@ -56,6 +61,14 @@ function Build-FfmpegArgs {
         "-map", "0:a?",
         "-map", "1:s"
     )
+
+    # Attach font if specified
+    if ($FontPath -and (Test-Path $FontPath)) {
+        $ffArgs += @(
+            "-attach", $FontPath,
+            "-metadata:s:t:0", "mimetype=font/ttf"
+        )
+    }
 
     # New subtitle settings (first subtitle track)
     $ffArgs += @(
@@ -109,6 +122,7 @@ function Invoke-SubtitleMuxer {
         [string]$SubtitlePath,
         [string]$OutputPath = "",
         [string]$OutputName = "",
+        [switch]$AttachFonts,  # Attach configured font to MKV
         [switch]$Quiet
     )
 
@@ -150,9 +164,22 @@ function Invoke-SubtitleMuxer {
         Show-Detail "Found $($existingSubtitles.Count) existing subtitle tracks, preserving them..."
     }
 
+    # Determine font path if attaching fonts
+    $fontPath = ""
+    if ($AttachFonts -and $script:EmbedFontFile) {
+        $fontPath = Join-Path $script:FontsDir $script:EmbedFontFile
+        if (Test-Path $fontPath) {
+            if (-not $Quiet) { Show-Detail "Attaching font: $($script:EmbedFontFile)" }
+        } else {
+            if (-not $Quiet) { Show-Warning "Font file not found: $fontPath" }
+            $fontPath = ""
+        }
+    }
+
     # Build and execute ffmpeg command
     $ffmpegArgs = Build-FfmpegArgs -VideoPath $VideoPath -SubtitlePath $SubtitlePath `
-                                   -OutputPath $OutputPath -ExistingSubtitleStreams $existingSubtitles
+                                   -OutputPath $OutputPath -ExistingSubtitleStreams $existingSubtitles `
+                                   -FontPath $fontPath
 
     if (-not $Quiet) {
         Show-Info "Muxing subtitle into video..."

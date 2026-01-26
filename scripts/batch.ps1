@@ -24,12 +24,12 @@ if (-not (Get-Command "Resume-Workflow" -ErrorAction SilentlyContinue)) {
     . "$PSScriptRoot\workflow.ps1"
 }
 
-# Configuration (set by vts.ps1)
-$script:BatchParallelDownloads = 3
-$script:BatchOutputDir = "$PSScriptRoot\..\output"
-$script:BatchCookieFile = ""
-$script:GenerateTranscriptInWorkflow = $false
-$script:TargetLanguage = "zh-Hans"
+# Configuration variables (set by config-manager.ps1 via Apply-ConfigToModules)
+# $script:BatchParallelDownloads
+# $script:BatchOutputDir
+# $script:BatchCookieFile
+# $script:GenerateTranscriptInWorkflow
+# $script:TargetLanguage
 
 #region Helper Functions
 
