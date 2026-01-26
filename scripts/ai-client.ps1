@@ -382,23 +382,16 @@ function Invoke-SubtitleTranslate {
         [Parameter(Mandatory=$true)]
         [array]$Entries,
         [string]$SourceLanguage = "English",
-        [string]$TargetLanguage = "Chinese (Simplified)",
+        [Parameter(Mandatory=$true)]
+        [string]$TargetLanguage,
         [hashtable]$Glossary = @{},
-        [int]$BatchSize = 20,
-        [int]$ContextSize = 3,
+        [int]$BatchSize = 10,
+        [int]$ContextSize = 2,
         [switch]$Quiet
     )
 
-    # Build glossary instruction
+    # Glossary is now applied in proofreading phase, not translation
     $glossaryInstruction = ""
-    if ($Glossary.Count -gt 0) {
-        $glossaryTerms = $Glossary.GetEnumerator() | ForEach-Object { "  - `"$($_.Key)`" -> `"$($_.Value)`"" }
-        $glossaryInstruction = @"
-
-GLOSSARY (use these exact translations):
-$($glossaryTerms -join "`n")
-"@
-    }
 
     $systemPrompt = @"
 You are a professional subtitle translator. Translate from $SourceLanguage to $TargetLanguage.
@@ -526,13 +519,26 @@ function Invoke-GlobalProofread {
     param(
         [Parameter(Mandatory=$true)]
         [array]$BilingualEntries,
-        [string]$TargetLanguage = "Chinese (Simplified)",
-        [int]$BatchSize = 50,
+        [Parameter(Mandatory=$true)]
+        [string]$TargetLanguage,
+        [int]$BatchSize = 25,
+        [hashtable]$Glossary = @{},
         [switch]$Quiet
     )
 
     if ($BilingualEntries.Count -eq 0) {
         return $BilingualEntries
+    }
+
+    # Build glossary instruction for proofreading
+    $glossaryInstruction = ""
+    if ($Glossary.Count -gt 0) {
+        $glossaryTerms = $Glossary.GetEnumerator() | ForEach-Object { "  - `"$($_.Key)`" -> `"$($_.Value)`"" }
+        $glossaryInstruction = @"
+
+GLOSSARY (apply these exact term translations where applicable):
+$($glossaryTerms -join "`n")
+"@
     }
 
     $systemPrompt = @"
@@ -543,9 +549,10 @@ Review and improve the translations:
 2. Ensure consistency in terminology throughout
 3. For Chinese: Replace Chinese punctuation (comma, period, enumeration comma) with spaces for subtitle readability
 4. For Chinese: Use corner brackets「」for quotations
-5. Keep the meaning faithful to the original
-6. Output format: JSON array with objects containing "index", "translation"
-
+5. Apply glossary terms where the source text contains matching words
+6. Keep the meaning faithful to the original
+7. Output format: JSON array with objects containing "index", "translation"
+$glossaryInstruction
 Only include entries that need changes. Respond ONLY with the JSON array.
 "@
 
@@ -656,7 +663,7 @@ function Invoke-SourceProofread {
         [Parameter(Mandatory=$true)]
         [array]$Entries,
         [hashtable]$Glossary = @{},
-        [int]$BatchSize = 30,
+        [int]$BatchSize = 20,
         [switch]$Quiet
     )
 

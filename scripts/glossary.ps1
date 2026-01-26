@@ -190,6 +190,7 @@ You are a content analyzer. Based on the subtitle content, select relevant gloss
 Available glossaries: $($glossaryNames -join ', ')
 
 Return ONLY a JSON array of glossary names, e.g. ["mufc", "sports"]
+Select at most 3 most relevant glossaries.
 If no glossary is relevant, return []
 "@
 

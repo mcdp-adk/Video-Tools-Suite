@@ -203,12 +203,12 @@ function Invoke-AiTranslateFlow {
     # Convert target language code to full name for AI
     $targetLangName = Get-LanguageDisplayName -LangCode $TargetLanguage
 
-    $bilingualEntries = Invoke-SubtitleTranslate -Entries $entriesToTranslate -TargetLanguage $targetLangName -Glossary $glossary -Quiet:$Quiet
+    $bilingualEntries = Invoke-SubtitleTranslate -Entries $entriesToTranslate -TargetLanguage $targetLangName -Quiet:$Quiet
 
     # Step 4: Translation proofreading
     if (-not $SkipProofread) {
         if (-not $Quiet) { Show-Info "Proofreading translations..." }
-        $bilingualEntries = Invoke-GlobalProofread -BilingualEntries $bilingualEntries -TargetLanguage $targetLangName -Quiet:$Quiet
+        $bilingualEntries = Invoke-GlobalProofread -BilingualEntries $bilingualEntries -TargetLanguage $targetLangName -Glossary $glossary -Quiet:$Quiet
     }
 
     return $bilingualEntries
