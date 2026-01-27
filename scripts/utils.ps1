@@ -29,27 +29,38 @@ function Format-DisplayPath {
 function Write-ColoredMessage {
     param(
         [string]$Message,
-        [string]$Color
+        [string]$Color,
+        [int]$Indent = 0
     )
-    Write-Host $Message -ForegroundColor $Color
+    $prefix = "  " * $Indent
+    Write-Host "$prefix$Message" -ForegroundColor $Color
 }
 
 # Display success message (green)
 function Show-Success {
-    param([string]$Message)
-    Write-ColoredMessage -Message $Message -Color Green
+    param(
+        [string]$Message,
+        [int]$Indent = 0
+    )
+    Write-ColoredMessage -Message $Message -Color Green -Indent $Indent
 }
 
 # Display error message (red)
 function Show-Error {
-    param([string]$Message)
-    Write-ColoredMessage -Message $Message -Color Red
+    param(
+        [string]$Message,
+        [int]$Indent = 0
+    )
+    Write-ColoredMessage -Message $Message -Color Red -Indent $Indent
 }
 
 # Display warning message (yellow)
 function Show-Warning {
-    param([string]$Message)
-    Write-ColoredMessage -Message $Message -Color Yellow
+    param(
+        [string]$Message,
+        [int]$Indent = 0
+    )
+    Write-ColoredMessage -Message $Message -Color Yellow -Indent $Indent
 }
 
 # Display info message (cyan) - progress, loading, processing

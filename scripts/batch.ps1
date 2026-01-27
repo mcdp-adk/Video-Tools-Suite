@@ -309,11 +309,11 @@ function Invoke-BatchWorkflow {
                 try {
                     Invoke-TranscriptGenerator -InputPath $item.SubtitlePath -OutputPath $transcriptPath -Quiet | Out-Null
                     $icon = $script:StatusIcon.Done
-                    Show-Success "$icon $displayName" -Indent 2
+                    Show-Success "$icon $displayName" -Indent 3
                 } catch {
                     # Transcript failure is non-fatal
                     $icon = $script:StatusIcon.Failed
-                    Show-Warning "$icon ${displayName}: $_" -Indent 2
+                    Show-Warning "$icon ${displayName}: $_" -Indent 3
                 }
             }
         }
@@ -356,12 +356,12 @@ function Invoke-BatchWorkflow {
                 }
 
                 $icon = $script:StatusIcon.Done
-                Show-Success "    $icon $displayName"
+                Show-Success "$icon $displayName" -Indent 3
                 $item.TranslateSuccess = $true
             }
             catch {
                 $icon = $script:StatusIcon.Failed
-                Show-Error "    $icon ${displayName}: $_"
+                Show-Error "$icon ${displayName}: $_" -Indent 3
                 $item.TranslateSuccess = $false
                 $item.TranslateError = $_.Exception.Message
             }
