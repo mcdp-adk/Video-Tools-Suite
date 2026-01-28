@@ -84,22 +84,25 @@ function Invoke-Step2-CookieFile {
 function Invoke-Step3-AiProvider {
     Show-WizardHeader -Step 3 -Title "AI Provider"
 
-    Write-Host "  [1] OpenAI (Recommended)" -ForegroundColor White
+    Write-Host "  [1] OpenAI" -ForegroundColor White
     Show-Hint "https://api.openai.com/v1" -Indent 2
     Write-Host ""
-    Write-Host "  [2] DeepSeek" -ForegroundColor White
+    Write-Host "  [2] Google Gemini" -ForegroundColor White
+    Show-Hint "https://generativelanguage.googleapis.com/v1beta/openai" -Indent 2
+    Write-Host ""
+    Write-Host "  [3] DeepSeek" -ForegroundColor White
     Show-Hint "https://api.deepseek.com" -Indent 2
     Write-Host ""
-    Write-Host "  [3] OpenRouter" -ForegroundColor White
+    Write-Host "  [4] OpenRouter" -ForegroundColor White
     Show-Hint "https://openrouter.ai/api/v1" -Indent 2
     Write-Host ""
-    Write-Host "  [4] Custom" -ForegroundColor White
+    Write-Host "  [5] Custom" -ForegroundColor White
     Show-Hint "Enter your own API endpoint" -Indent 2
     Show-ActionHint -Back -Default
     Write-Host ""
 
     while ($true) {
-        $choice = Read-Host "  Select [1-4, default=1]"
+        $choice = Read-Host "  Select [1-5, default=1]"
 
         if ($choice -ieq 'B') { return 'back' }
         if ($choice -ieq 'D') {
@@ -110,8 +113,8 @@ function Invoke-Step3-AiProvider {
         }
         if (-not $choice) { $choice = '1' }
 
-        if ($choice -notmatch '^[1234]$') {
-            Show-Error "Invalid choice. Please enter 1-4."
+        if ($choice -notmatch '^[12345]$') {
+            Show-Error "Invalid choice. Please enter 1-5."
             continue
         }
 
@@ -122,16 +125,21 @@ function Invoke-Step3-AiProvider {
                 Show-Success "OpenAI selected"
             }
             '2' {
+                Set-ConfigValue -Key "AiProvider" -Value "gemini"
+                Set-ConfigValue -Key "AiBaseUrl" -Value "https://generativelanguage.googleapis.com/v1beta/openai"
+                Show-Success "Google Gemini selected"
+            }
+            '3' {
                 Set-ConfigValue -Key "AiProvider" -Value "deepseek"
                 Set-ConfigValue -Key "AiBaseUrl" -Value "https://api.deepseek.com"
                 Show-Success "DeepSeek selected"
             }
-            '3' {
+            '4' {
                 Set-ConfigValue -Key "AiProvider" -Value "openrouter"
                 Set-ConfigValue -Key "AiBaseUrl" -Value "https://openrouter.ai/api/v1"
                 Show-Success "OpenRouter selected"
             }
-            '4' {
+            '5' {
                 Set-ConfigValue -Key "AiProvider" -Value "custom"
                 Write-Host ""
                 $customUrl = Read-Host "  Enter API base URL"
@@ -148,16 +156,19 @@ function Invoke-Step4-Model {
 
     $modelOptions = @{
         'openai'     = @("gpt-4o-mini", "gpt-4o")
+        'gemini'     = @("gemini-flash-latest", "gemini-flash-lite-latest")
         'deepseek'   = @("deepseek-chat", "deepseek-reasoner")
         'openrouter' = @("openrouter/auto")
     }
 
     $modelDescriptions = @{
-        'gpt-4o-mini'       = "Fast and cost-effective"
-        'gpt-4o'            = "Higher quality, more expensive"
-        'deepseek-chat'     = "General purpose chat model"
-        'deepseek-reasoner' = "Advanced reasoning capabilities"
-        'openrouter/auto'   = "Automatically selects best model"
+        'gpt-4o-mini'              = "Fast and cost-effective"
+        'gpt-4o'                   = "Higher quality, more expensive"
+        'gemini-flash-latest'      = "Fast and versatile"
+        'gemini-flash-lite-latest' = "Light and cost-effective"
+        'deepseek-chat'            = "General purpose chat model"
+        'deepseek-reasoner'        = "Advanced reasoning capabilities"
+        'openrouter/auto'          = "Automatically selects best model"
     }
 
     $currentProvider = Get-ConfigValue -Key "AiProvider"
@@ -168,7 +179,7 @@ function Invoke-Step4-Model {
 
         for ($i = 0; $i -lt $options.Count; $i++) {
             $model = $options[$i]
-            $label = if ($i -eq 0) { "$model (Recommended)" } else { $model }
+            $label = $model
             Write-Host "  [$($i + 1)] $label" -ForegroundColor White
             if ($modelDescriptions.ContainsKey($model)) {
                 Show-Hint "$($modelDescriptions[$model])" -Indent 2
@@ -274,7 +285,7 @@ function Invoke-Step6-Language {
     for ($i = 0; $i -lt $langOptions.Count; $i++) {
         $code = $langOptions[$i]
         $name = $script:QuickSelectLanguages[$code]
-        $label = if ($i -eq 0) { "$name ($code) (Recommended)" } else { "$name ($code)" }
+        $label = "$name ($code)"
         Write-Host "  [$($i + 1)] $label" -ForegroundColor White
     }
     Write-Host "  [$maxLangChoice] Custom" -ForegroundColor White

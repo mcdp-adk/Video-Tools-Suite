@@ -84,25 +84,30 @@ function Invoke-SettingsMenu {
             '2' {
                 Write-Host ""
                 Write-Host "  [1] OpenAI" -ForegroundColor White
-                Write-Host "  [2] DeepSeek" -ForegroundColor White
-                Write-Host "  [3] OpenRouter" -ForegroundColor White
-                Write-Host "  [4] Custom" -ForegroundColor White
+                Write-Host "  [2] Google Gemini" -ForegroundColor White
+                Write-Host "  [3] DeepSeek" -ForegroundColor White
+                Write-Host "  [4] OpenRouter" -ForegroundColor White
+                Write-Host "  [5] Custom" -ForegroundColor White
                 Write-Host ""
-                $providerChoice = Read-Host "  Select [1-4]"
+                $providerChoice = Read-Host "  Select [1-5]"
                 switch ($providerChoice) {
                     '1' {
                         Set-ConfigValue -Key "AiProvider" -Value "openai"
                         Set-ConfigValue -Key "AiBaseUrl" -Value "https://api.openai.com/v1"
                     }
                     '2' {
+                        Set-ConfigValue -Key "AiProvider" -Value "gemini"
+                        Set-ConfigValue -Key "AiBaseUrl" -Value "https://generativelanguage.googleapis.com/v1beta/openai"
+                    }
+                    '3' {
                         Set-ConfigValue -Key "AiProvider" -Value "deepseek"
                         Set-ConfigValue -Key "AiBaseUrl" -Value "https://api.deepseek.com"
                     }
-                    '3' {
+                    '4' {
                         Set-ConfigValue -Key "AiProvider" -Value "openrouter"
                         Set-ConfigValue -Key "AiBaseUrl" -Value "https://openrouter.ai/api/v1"
                     }
-                    '4' {
+                    '5' {
                         Set-ConfigValue -Key "AiProvider" -Value "custom"
                         $customUrl = Read-Host "  Enter API base URL"
                         if ($customUrl) {
