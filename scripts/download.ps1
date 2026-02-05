@@ -244,7 +244,8 @@ function Get-CommonYtDlpArgs {
     $args = @(
         "--no-warnings",
         "--restrict-filenames",
-        "--compat-options", "no-live-chat"
+        "--compat-options", "no-live-chat",
+        "--extractor-args", "youtube:player_js_variant=tv"
     )
 
     if ($ShowProgress) {
