@@ -19,9 +19,6 @@ if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
 # $script:AiClient_ApiKey
 # $script:AiClient_Model
 
-# Sentence segmentation cache (avoid duplicate AI calls within same session)
-$script:SentenceCache = @{}
-
 #region Core API
 
 # Invoke OpenAI-compatible chat completion API
@@ -113,87 +110,81 @@ function Invoke-AiCompletion {
     throw "AI API call failed after $MaxRetries retries: $($lastError.Exception.Message)"
 }
 
-# Invoke API with conversation history
-function Invoke-AiCompletionWithHistory {
+# Extract JSON from AI response with multiple format handling
+function ConvertFrom-AiJsonResponse {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Response,
+        [switch]$AllowEmpty
+    )
+
+    $jsonContent = $Response
+
+    # 1. Try Markdown code block
+    if ($Response -match '```(?:json)?\s*([\s\S]*?)\s*```') {
+        $jsonContent = $Matches[1]
+    }
+    # 2. Try JSON array [...]
+    elseif ($Response -match '\[[\s\S]*\]') {
+        $jsonContent = $Matches[0]
+    }
+    # 3. Handle multiple JSON objects (not in array)
+    elseif ($Response -match '\{[^{}]*"index"') {
+        $objects = [regex]::Matches($Response, '\{[^{}]*"index"[^{}]*\}')
+        if ($objects.Count -gt 0) {
+            $jsonContent = '[' + (($objects | ForEach-Object { $_.Value }) -join ',') + ']'
+        }
+    }
+    # 4. Single JSON object {...}
+    elseif ($Response -match '\{[\s\S]*\}') {
+        $jsonContent = $Matches[0]
+    }
+
+    # Clean up
+    $jsonContent = $jsonContent.Trim()
+    $jsonContent = $jsonContent -replace '\}[\s]*[.,;:!?]+\s*$', '}'
+    $jsonContent = $jsonContent -replace '\][\s]*[.,;:!?]+\s*$', ']'
+
+    # Handle empty
+    if (-not $jsonContent -or $jsonContent -eq '[]') {
+        if ($AllowEmpty) { return @() }
+        throw "Empty JSON response"
+    }
+
+    return $jsonContent | ConvertFrom-Json
+}
+
+# Invoke AI completion with JSON parsing and retry
+function Invoke-AiJsonRequest {
     param(
         [Parameter(Mandatory=$true)]
         [string]$SystemPrompt,
         [Parameter(Mandatory=$true)]
-        [array]$Messages,
+        [string]$UserPrompt,
         [double]$Temperature = 0.3,
         [int]$MaxTokens = 4096,
-        [int]$MaxRetries = 5,
-        [int]$BaseDelaySeconds = 5
+        [int]$MaxAttempts = 3,
+        [switch]$AllowEmpty
     )
-
-    if (-not $script:AiClient_ApiKey) {
-        throw "AI API key not configured. Please set up in Settings."
-    }
-
-    $uri = "$($script:AiClient_BaseUrl)/chat/completions"
-
-    $headers = @{
-        "Authorization" = "Bearer $($script:AiClient_ApiKey)"
-        "Content-Type" = "application/json"
-    }
-
-    $allMessages = @(@{ role = "system"; content = $SystemPrompt }) + $Messages
-
-    $bodyJson = @{
-        model = $script:AiClient_Model
-        messages = $allMessages
-        temperature = $Temperature
-        max_tokens = $MaxTokens
-    } | ConvertTo-Json -Depth 10
-
-    # Ensure proper UTF-8 encoding for the request body
-    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($bodyJson)
 
     $lastError = $null
 
-    for ($retry = 0; $retry -lt $MaxRetries; $retry++) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         try {
-            # Use Invoke-WebRequest + manual UTF-8 decoding to ensure proper Chinese character handling
-            $webResponse = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers -Body $bodyBytes -ContentType "application/json; charset=utf-8" -UseBasicParsing
-
-            # Manually decode response as UTF-8 to prevent encoding issues
-            $responseBytes = [System.Text.Encoding]::GetEncoding("ISO-8859-1").GetBytes($webResponse.Content)
-            $responseText = [System.Text.Encoding]::UTF8.GetString($responseBytes)
-            $response = $responseText | ConvertFrom-Json
-
-            return $response.choices[0].message.content
+            $response = Invoke-AiCompletion -SystemPrompt $SystemPrompt -UserPrompt $UserPrompt -Temperature $Temperature -MaxTokens $MaxTokens
+            return ConvertFrom-AiJsonResponse -Response $response -AllowEmpty:$AllowEmpty
         }
         catch {
             $lastError = $_
-            $statusCode = 0
-            if ($_.Exception.Response) {
-                $statusCode = [int]$_.Exception.Response.StatusCode
-            }
-
-            # Retry on 429 (Rate Limit) and 5xx (Server Error)
-            if ($statusCode -eq 429 -or ($statusCode -ge 500 -and $statusCode -lt 600)) {
-                $delay = $BaseDelaySeconds * [math]::Pow(2, $retry) + (Get-Random -Minimum 0 -Maximum 1000) / 1000
-                $delay = [math]::Min($delay, 60)  # Max 60 seconds
-                Write-Warning "API rate limit/error (HTTP $statusCode), retrying in $([math]::Round($delay))s ($($retry + 1)/$MaxRetries)..."
-                Start-Sleep -Seconds $delay
+            if ($attempt -lt $MaxAttempts) {
+                Write-Warning "JSON parse failed (attempt $attempt/$MaxAttempts): $($_.Exception.Message)"
+                Start-Sleep -Milliseconds 500
                 continue
             }
-
-            # Other errors: throw immediately
-            $errorMessage = $_.Exception.Message
-            if ($_.ErrorDetails.Message) {
-                try {
-                    $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json
-                    if ($errorJson.error.message) {
-                        $errorMessage = $errorJson.error.message
-                    }
-                } catch {}
-            }
-            throw "AI API call failed: $errorMessage"
         }
     }
 
-    throw "AI API call failed after $MaxRetries retries: $($lastError.Exception.Message)"
+    throw "AI JSON request failed after $MaxAttempts attempts: $($lastError.Exception.Message)"
 }
 
 #endregion
@@ -210,7 +201,7 @@ function Invoke-CueBasedSegmentation {
         [array]$Words,                   # Flat array of @{ Word; StartTime; CueIndex }
         [int]$MaxWordsPerSegment = 18,
         [int]$MinWordsPerSegment = 5,
-        [int]$CuesPerBatch = 25,         # Process ~25 cues at a time (~150-200 words)
+        [int]$CuesPerBatch = 45,         # Process ~45 cues at a time (optimized for Gemini Flash)
         [int]$MaxAttempts = 3,
         [switch]$Quiet
     )
@@ -385,8 +376,8 @@ function Invoke-SubtitleTranslate {
         [Parameter(Mandatory=$true)]
         [string]$TargetLanguage,
         [hashtable]$Glossary = @{},
-        [int]$BatchSize = 10,
-        [int]$ContextSize = 2,
+        [int]$BatchSize = 20,
+        [int]$ContextSize = 3,
         [switch]$Quiet
     )
 
@@ -452,28 +443,7 @@ Respond ONLY with the JSON array, no explanations.
             try {
                 if (-not $Quiet) { Show-Detail "Translating batch $($batchIndex + 1)/$totalBatches..." }
 
-                $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.3
-
-                # Extract JSON with enhanced parsing
-                $jsonContent = $response
-                # 1. Try Markdown code block
-                if ($response -match '```(?:json)?\s*([\s\S]*?)\s*```') {
-                    $jsonContent = $Matches[1]
-                }
-                # 2. Try JSON array [...]
-                elseif ($response -match '\[[\s\S]*\]') {
-                    $jsonContent = $Matches[0]
-                }
-                # 3. Try JSON object {...}
-                elseif ($response -match '\{[\s\S]*\}') {
-                    $jsonContent = $Matches[0]
-                }
-                $jsonContent = $jsonContent.Trim()
-                # Remove trailing punctuation after JSON (like "}." or "},")
-                $jsonContent = $jsonContent -replace '\}[\s]*[.,;:!?]+\s*$', '}'
-                $jsonContent = $jsonContent -replace '\][\s]*[.,;:!?]+\s*$', ']'
-
-                $translations = $jsonContent | ConvertFrom-Json
+                $translations = Invoke-AiJsonRequest -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.3
 
                 # Map translations back to entries
                 foreach ($trans in $translations) {
@@ -521,7 +491,7 @@ function Invoke-GlobalProofread {
         [array]$BilingualEntries,
         [Parameter(Mandatory=$true)]
         [string]$TargetLanguage,
-        [int]$BatchSize = 25,
+        [int]$BatchSize = 45,
         [hashtable]$Glossary = @{},
         [switch]$Quiet
     )
@@ -592,45 +562,7 @@ Only include entries that need changes. Respond ONLY with the JSON array.
             try {
                 if (-not $Quiet) { Show-Detail "Proofreading batch $($batchIndex + 1)/$totalBatches..." }
 
-                $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
-
-                # Extract JSON with enhanced parsing
-                $jsonContent = $response
-
-                # 1. Try Markdown code block
-                if ($response -match '```(?:json)?\s*([\s\S]*?)\s*```') {
-                    $jsonContent = $Matches[1]
-                }
-                # 2. Try JSON array [...]
-                elseif ($response -match '\[[\s\S]*\]') {
-                    $jsonContent = $Matches[0]
-                }
-                # 3. Handle multiple JSON objects (not in array)
-                # AI sometimes returns: {obj1}, {obj2}, ... instead of [{obj1}, {obj2}]
-                elseif ($response -match '\{[^{}]*"index"') {
-                    # Extract all JSON objects and wrap in array
-                    $objects = [regex]::Matches($response, '\{[^{}]*"index"[^{}]*"translation"[^{}]*\}')
-                    if ($objects.Count -gt 0) {
-                        $jsonContent = '[' + (($objects | ForEach-Object { $_.Value }) -join ',') + ']'
-                    }
-                }
-                # 4. Single JSON object {...}
-                elseif ($response -match '\{[\s\S]*\}') {
-                    $jsonContent = $Matches[0]
-                }
-
-                # Clean up common issues
-                $jsonContent = $jsonContent.Trim()
-                # Remove trailing punctuation after JSON (like "}." or "},")
-                $jsonContent = $jsonContent -replace '\}[\s]*[.,;:!?]+\s*$', '}'
-                $jsonContent = $jsonContent -replace '\][\s]*[.,;:!?]+\s*$', ']'
-
-                # Skip if empty response (no changes needed for this batch)
-                if (-not $jsonContent -or $jsonContent -eq '[]') {
-                    continue
-                }
-
-                $corrections = $jsonContent | ConvertFrom-Json
+                $corrections = Invoke-AiJsonRequest -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -AllowEmpty
 
                 # Apply corrections to result
                 foreach ($correction in $corrections) {
@@ -721,23 +653,13 @@ Only include entries that need changes. Respond ONLY with the JSON array.
             try {
                 if (-not $Quiet) { Show-Detail "Source proofreading batch $($batchIndex + 1)/$totalBatches..." }
 
-                $response = Invoke-AiCompletion -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -MaxTokens 4096
+                $edits = Invoke-AiJsonRequest -SystemPrompt $systemPrompt -UserPrompt $userPrompt -Temperature 0.2 -AllowEmpty
 
-                # Parse JSON
-                $jsonContent = $response
-                if ($response -match '\[[\s\S]*\]') {
-                    $jsonContent = $Matches[0]
-                }
-                $jsonContent = $jsonContent.Trim() -replace '\][\s]*[.,;:!?]+\s*$', ']'
-
-                if ($jsonContent -and $jsonContent -ne '[]') {
-                    $edits = $jsonContent | ConvertFrom-Json
-                    foreach ($edit in $edits) {
-                        $idx = $edit.index
-                        if ($idx -ge 0 -and $idx -lt $result.Count) {
-                            $result[$idx].Text = $edit.text
-                            $corrections++
-                        }
+                foreach ($edit in $edits) {
+                    $idx = $edit.index
+                    if ($idx -ge 0 -and $idx -lt $result.Count) {
+                        $result[$idx].Text = $edit.text
+                        $corrections++
                     }
                 }
             } catch {
