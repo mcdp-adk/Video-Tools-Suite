@@ -22,6 +22,9 @@ if (-not (Get-Command "Set-VtsWindowTitle" -ErrorAction SilentlyContinue)) {
 #region Core API
 
 # Invoke OpenAI-compatible chat completion API
+# Uses HttpWebRequest + StreamReader(UTF-8) to bypass PS 5.1 encoding issues
+# (Invoke-WebRequest applies system default encoding (GBK on Chinese Windows)
+#  to RawContentStream, corrupting CJK symbols like 「」【】)
 function Invoke-AiCompletion {
     param(
         [Parameter(Mandatory=$true)]
@@ -41,11 +44,6 @@ function Invoke-AiCompletion {
 
     $uri = "$($script:AiClient_BaseUrl)/chat/completions"
 
-    $headers = @{
-        "Authorization" = "Bearer $($script:AiClient_ApiKey)"
-        "Content-Type" = "application/json"
-    }
-
     $bodyJson = @{
         model = $script:AiClient_Model
         messages = @(
@@ -63,12 +61,27 @@ function Invoke-AiCompletion {
 
     for ($retry = 0; $retry -lt $MaxRetries; $retry++) {
         try {
-            # Use Invoke-WebRequest + manual UTF-8 decoding to ensure proper Chinese character handling
-            $webResponse = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers -Body $bodyBytes -ContentType "application/json; charset=utf-8" -UseBasicParsing
+            [System.Net.HttpWebRequest]$request = [System.Net.WebRequest]::Create($uri)
+            $request.Method = "POST"
+            $request.ContentType = "application/json; charset=utf-8"
+            $request.Headers.Add("Authorization", "Bearer $($script:AiClient_ApiKey)")
+            $request.ContentLength = $bodyBytes.Length
 
-            # Manually decode response as UTF-8 to prevent encoding issues
-            $responseBytes = [System.Text.Encoding]::GetEncoding("ISO-8859-1").GetBytes($webResponse.Content)
-            $responseText = [System.Text.Encoding]::UTF8.GetString($responseBytes)
+            # Send request body
+            $reqStream = $request.GetRequestStream()
+            $reqStream.Write($bodyBytes, 0, $bodyBytes.Length)
+            $reqStream.Close()
+
+            # Read response with explicit UTF-8 StreamReader
+            $httpResponse = $request.GetResponse()
+            try {
+                $reader = New-Object System.IO.StreamReader($httpResponse.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                $responseText = $reader.ReadToEnd()
+                $reader.Close()
+            } finally {
+                $httpResponse.Close()
+            }
+
             $response = $responseText | ConvertFrom-Json
 
             if ($ReturnFullResponse) {
@@ -80,8 +93,15 @@ function Invoke-AiCompletion {
         catch {
             $lastError = $_
             $statusCode = 0
-            if ($_.Exception.Response) {
-                $statusCode = [int]$_.Exception.Response.StatusCode
+
+            # Extract WebException from .NET exception chain
+            $webEx = $_.Exception
+            while ($webEx -and -not ($webEx -is [System.Net.WebException])) {
+                $webEx = $webEx.InnerException
+            }
+
+            if ($webEx -and $webEx.Response) {
+                $statusCode = [int]$webEx.Response.StatusCode
             }
 
             # Retry on 429 (Rate Limit) and 5xx (Server Error)
@@ -93,11 +113,14 @@ function Invoke-AiCompletion {
                 continue
             }
 
-            # Other errors: throw immediately
+            # Other errors: extract error message from response body
             $errorMessage = $_.Exception.Message
-            if ($_.ErrorDetails.Message) {
+            if ($webEx -and $webEx.Response) {
                 try {
-                    $errorJson = $_.ErrorDetails.Message | ConvertFrom-Json
+                    $errReader = New-Object System.IO.StreamReader($webEx.Response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                    $errorBody = $errReader.ReadToEnd()
+                    $errReader.Close()
+                    $errorJson = $errorBody | ConvertFrom-Json
                     if ($errorJson.error.message) {
                         $errorMessage = $errorJson.error.message
                     }

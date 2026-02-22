@@ -34,7 +34,7 @@ function Import-Config {
         throw "No config source found"
     }
 
-    $fileConfig = Get-Content $sourceFile -Raw | ConvertFrom-Json
+    $fileConfig = Get-Content $sourceFile -Raw -Encoding UTF8 | ConvertFrom-Json
 
     # Convert PSObject to hashtable
     $script:Config = @{}
@@ -71,7 +71,7 @@ function Get-DefaultConfigValue {
     if (-not (Test-Path $script:ConfigExampleFile)) {
         return $null
     }
-    $defaults = Get-Content $script:ConfigExampleFile -Raw | ConvertFrom-Json
+    $defaults = Get-Content $script:ConfigExampleFile -Raw -Encoding UTF8 | ConvertFrom-Json
     return $defaults.$Key
 }
 
